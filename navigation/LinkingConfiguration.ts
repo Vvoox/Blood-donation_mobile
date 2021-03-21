@@ -6,12 +6,12 @@ export default {
     screens: {
       Root: {
         screens: {
-          TabOne: {
+          Beneficiary: {
             screens: {
               TabOneScreen: 'one',
             },
           },
-          TabTwo: {
+          Giver: {
             screens: {
               TabTwoScreen: 'two',
             },

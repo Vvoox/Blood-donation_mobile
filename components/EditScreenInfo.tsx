@@ -14,7 +14,7 @@ export default function EditScreenInfo({ path }: { path: string }) {
           style={styles.getStartedText}
           lightColor="rgba(0,0,0,0.8)"
           darkColor="rgba(255,255,255,0.8)">
-          Welcome to the Blood Donation App , here you can give and ask people for blood donation
+          Welcome to the Blood Donation App, here you can give and ask people for blood donation
         </Text>
 
         {/*<View*/}
