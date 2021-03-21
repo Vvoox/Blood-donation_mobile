@@ -1,0 +1,69 @@
+Arguments: 
+  /home/vvoox/.nvm/versions/node/v14.1.0/bin/node /usr/share/yarn/bin/yarn.js add expo
+
+PATH: 
+  /home/vvoox/.nvm/versions/node/v14.1.0/bin:/home/vvoox/.local/bin:/home/vvoox/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/lib/jvm/java-8-openjdk-amd64/bin:/home/vvoox/Android/Sdk/tools:/home/vvoox/bin:/home/vvoox/.jdks/jdk1.8.0_251/bin:/usr/lib/dart/bin:/usr/lib/dart/bin
+
+Yarn version: 
+  1.22.5
+
+Node version: 
+  14.1.0
+
+Platform: 
+  linux x64
+
+Trace: 
+  Error: ENOSPC: no space left on device, copyfile '/home/vvoox/.cache/yarn/v6/npm-typescript-4.0.7-7168032c43d2a2671c95c07812f69523c79590af-integrity/node_modules/typescript/lib/typescriptServices.js' -> '/home/vvoox/blood-donation_front/blood-donation/node_modules/typescript/lib/typescriptServices.js'
+
+npm manifest: 
+  {
+    "main": "node_modules/expo/AppEntry.js",
+    "scripts": {
+      "start": "expo start",
+      "android": "expo start --android",
+      "ios": "expo start --ios",
+      "web": "expo start --web",
+      "eject": "expo eject",
+      "test": "jest --watchAll"
+    },
+    "jest": {
+      "preset": "jest-expo"
+    },
+    "dependencies": {
+      "@expo/vector-icons": "^12.0.0",
+      "@react-native-community/masked-view": "0.1.10",
+      "@react-navigation/bottom-tabs": "5.11.2",
+      "@react-navigation/native": "~5.8.10",
+      "@react-navigation/stack": "~5.12.8",
+      "expo": "~40.0.0",
+      "expo-asset": "~8.2.1",
+      "expo-constants": "~9.3.0",
+      "expo-font": "~8.4.0",
+      "expo-linking": "~2.0.0",
+      "expo-splash-screen": "~0.8.0",
+      "expo-status-bar": "~1.0.3",
+      "expo-web-browser": "~8.6.0",
+      "react": "16.13.1",
+      "react-dom": "16.13.1",
+      "react-native": "https://github.com/expo/react-native/archive/sdk-40.0.1.tar.gz",
+      "react-native-gesture-handler": "~1.8.0",
+      "react-native-safe-area-context": "3.1.9",
+      "react-native-screens": "~2.15.0",
+      "react-native-web": "~0.13.12"
+    },
+    "devDependencies": {
+      "@babel/core": "~7.9.0",
+      "@types/react": "~16.9.35",
+      "@types/react-native": "~0.63.2",
+      "jest-expo": "~40.0.0",
+      "typescript": "~4.0.0"
+    },
+    "private": true
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
