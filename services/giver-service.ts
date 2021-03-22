@@ -1,19 +1,30 @@
 import axiosInstance from "../request.interceptor";
 import {config} from "../constants/api";
 import {addGiver, getGiverByType, modifyGiver, deleteGiver} from "../redux/actions/giver-actions";
+import {Giver} from "../models/giver";
+import axios from "axios";
 
-export const fetchGiver = () => (dispatch: any) =>
+export const fetchGivers = () => (dispatch: any) =>{
+    console.log('fetch');
     axiosInstance.get(`${config.API_URL}/giver/all`)
         .then(({data}) => dispatch(getGiverByType(data)));
+}
+
+export const getAllUsers = () =>{
+    return axios.get(config.API_URL+'/user/all');
+}
+export const getAllUsersByType = (bloodType:any) =>{
+    return axios.get(config.API_URL+'/user/type',{ params: { type: bloodType } });
+}
 
 export const createGiver = (payload: any) => (dispatch: any) =>
     axiosInstance.post(`${config.API_URL}/giver/add`, payload)
         .then(({data}) => dispatch(addGiver(data)));
 
-export const updateGiver = (id: string, client: Client) => (dispatch: any) =>
-    axiosInstance.put(`${config.API_URL}/clients/${id}/modify`, client)
+export const updateGiver = (id: string, giver: Giver) => (dispatch: any) =>
+    axiosInstance.put(`${config.API_URL}/clients/${id}/modify`, giver)
         .then(({data}) => {
-            console.log("updated client", data);
+            console.log("updated giver", data);
             dispatch(modifyGiver(data));
         });
 

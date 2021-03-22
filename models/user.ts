@@ -1,5 +1,5 @@
 export interface User{
-    userId?:string;
+    id?:number;
     firstName?:string;
     lastName?:string;
     email?:string;
@@ -8,5 +8,6 @@ export interface User{
     country?:string;
     address?:string;
     date?:Date;
+    bloodType?:String;
 
 }
