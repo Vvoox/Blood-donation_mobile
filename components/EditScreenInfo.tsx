@@ -6,15 +6,20 @@ import { Searchbar } from 'react-native-paper';
 import Colors from '../constants/Colors';
 import { MonoText } from './StyledText';
 import { Text, View } from './Themed';
-import {fetchGivers, getAllUsers, getAllUsersByType} from "../services/giver-service";
+import {fetchGivers, getAllUsers, getAllUsersByType, getAllUsersByTypes} from "../services/giver-service";
 import { SearchBar } from 'react-native-elements';
 import {FlatList, SafeAreaView, StyleSheet, Image} from "react-native";
 // import {createStackNavigator} from "@react-navigation/stack";
-import {Container, Header, Content, Card, CardItem, Icon, Right, Thumbnail, Body} from 'native-base';
+import {Container, Header, Content, Card, CardItem, Right, Thumbnail, Body} from 'native-base';
 // import { Table, Row, Rows } from 'react-native-table-component';
+import DropDownPicker from 'react-native-dropdown-picker';
+import Icon from 'react-native-vector-icons/Fontisto';
+import { Button } from 'react-native-elements';
+// import Icon from 'react-native-vector-icons/dist/FontAwesome';
+
 import {
   ActionSheet,
-  Button,
+
   Form,
   Input,
   Item,
@@ -34,6 +39,9 @@ import {User} from "../models/user";
 export default function EditScreenInfo({ path }: { path: string }) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [user, setUser] = useState([]);
+  const [selectedValue, setSelectedValue] = useState("java");
+  const [blood, setBlood] = useState([]);
+
   const onChangeSearch = (query: React.SetStateAction<string>) => {
     setSearchQuery(query);
     console.log(query);
@@ -43,7 +51,7 @@ export default function EditScreenInfo({ path }: { path: string }) {
   }
 
   // useEffect(() => {
-  //   // getAllUsers().then(r => setUser(r.data));
+  //   getAllUsers().then(r => setUser(r.data));
   //   console.log(user);
   //   // getAllUsersByType(type).then(r => setUser(r.data));
   //
@@ -58,43 +66,72 @@ export default function EditScreenInfo({ path }: { path: string }) {
   const goUser = (user: any) => {
     console.log(user.id);
     // getAllUsers().then(r => setUser(r.data));
-    // Alert.alert(
-    //     "This is user with id : "+user.id,
-    //     "user "+user.firstName+" "+user.lastName,
-    //     [
-    //       {
-    //         text: "Cancel",
-    //         onPress: () => console.log("Cancel Pressed"),
-    //         style: "cancel"
-    //       },
-    //       { text: "OK", onPress: () => console.log("OK Pressed") }
-    //     ]
-    // );
+    Alert.alert(
+        "This is user with id : "+user.id,
+        "user "+user.firstName+" "+user.lastName,
+        [
+          {
+            text: "Cancel",
+            onPress: () => console.log("Cancel Pressed"),
+            style: "cancel"
+          },
+          { text: "OK", onPress: () => console.log("OK Pressed") }
+        ]
+    );
   }
+  const onChangeBlood= (item: string) => {
+    console.log(item);
+    // @ts-ignore
+    setBlood(item);
+  }
+  const goSearch = () => {
+    console.log(blood);
+    getAllUsersByTypes(blood).then(r => {
+      console.log(r.data);
+      setUser(r.data);
+    });
+  }
+
 
 
   return (
     <View>
+      <DropDownPicker
+          items={[
+            {label: 'O+', value: 'O_POSITIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            {label: 'O-', value: 'O_NEGATIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            {label: 'A+', value: 'A_POSITIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            // {label: 'A-', value: 'A_NEGATIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            {label: 'B+', value: 'B_POSITIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            // {label: 'B-', value: 'B_NEGATIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            // {label: 'AB+', value: 'AB_POSITIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+            // {label: 'AB-', value: 'AB_NEGATIVE', icon: () => <Icon name="blood-drop" size={18} color="#900" />},
+          ]}
+
+          multiple={true}
+          multipleText="%d types have been selected."
+          min={0}
+          max={10}
+
+          placeholder={'Select a type'}
+          defaultValue={''}
+          containerStyle={{height: 40}}
+          itemStyle={{justifyContent: 'flex-start'}}
+          onChangeItem={item=>onChangeBlood(item)}
+      />
       <View style={styles.getStartedContainer}>
-
-        <Searchbar
-            placeholder="Type Blood"
-            onChangeText={onChangeSearch}
-            value={searchQuery}
-            style={styles.searchBar}
-
+        <Button
+            title="Search"
+            onPress={goSearch}
+            icon={
+              <Icon
+                  name="search"
+                  size={15}
+                  color="white"
+              />
+            }
         />
-        {/*<Div style={{height: 20}}/>*/}
-        {/*{giver && giver.length === 0 && <Text style={{textAlign: 'center'}}>*/}
-        {/*  no giver yet.*/}
-        {/*</Text>}*/}
 
-        {/*<Text*/}
-        {/*    style={styles.helpContainer}*/}
-        {/*    lightColor="rgba(0,0,0,0.8)"*/}
-        {/*    darkColor="rgba(255,255,255,0.8)">*/}
-        {/*  Welcome to the Blood Donation App, here you can give and ask people for blood donation*/}
-        {/*</Text>*/}
       </View>
 
       <View style={styles.helpContainer}>
@@ -116,7 +153,7 @@ export default function EditScreenInfo({ path }: { path: string }) {
             </Body>
           </Left>
           <Right>
-            <Icon name="arrow-forward" onPress={() => goUser(user)} />
+            <Icon name="check" onPress={() => goUser(user)} />
           </Right>
         </ListItem>
         )}
@@ -160,6 +197,7 @@ const styles = StyleSheet.create({
   getStartedContainer: {
     alignItems: 'center',
     marginHorizontal: 50,
+    paddingTop:10
   },
   homeScreenFilename: {
     marginVertical: 7,

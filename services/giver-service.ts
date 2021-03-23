@@ -16,6 +16,10 @@ export const getAllUsers = () =>{
 export const getAllUsersByType = (bloodType:any) =>{
     return axios.get(config.API_URL+'/user/type',{ params: { type: bloodType } });
 }
+export const getAllUsersByTypes = (payload: any) => {
+    // console.log(payload);
+    return axiosInstance.post(config.API_URL+'/user/types',payload);
+}
 
 export const createGiver = (payload: any) => (dispatch: any) =>
     axiosInstance.post(`${config.API_URL}/giver/add`, payload)
