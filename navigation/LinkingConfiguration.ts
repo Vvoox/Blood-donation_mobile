@@ -1,24 +1,29 @@
 import * as Linking from 'expo-linking';
 
 export default {
-  prefixes: [Linking.makeUrl('/')],
+  prefixes: [Linking.makeUrl('/'), 'bloodlink://'],
   config: {
     screens: {
-      Root: {
+      Auth: {
         screens: {
-          Beneficiary: {
-            screens: {
-              TabOneScreen: 'one',
-            },
-          },
-          Giver: {
-            screens: {
-              TabTwoScreen: 'two',
-            },
-          },
+          Splash: 'splash',
+          Login: 'login',
+          Register: 'register',
         },
       },
-      NotFound: '*',
+      App: {
+        screens: {
+          Home: 'home',
+          Search: {
+            screens: {
+              SearchMain: 'search',
+              DonorDetail: 'donor/:id',
+            },
+          },
+          Donate: 'donate',
+          Profile: 'profile',
+        },
+      },
     },
   },
 };

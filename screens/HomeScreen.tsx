@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { CompositeNavigationProp, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import * as React from 'react';
 import {
-  FlatList,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -19,7 +18,6 @@ import { Colors } from '../constants/Colors';
 import { GIVER_ACTIONS } from '../redux/reducers/giver-reducer';
 import { RootState } from '../redux/store';
 import { getAllGivers } from '../services/giver-service';
-import { Giver } from '../models/giver';
 
 const COMPATIBILITY: Record<string, string[]> = {
   'O-': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
