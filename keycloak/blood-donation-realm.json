@@ -1,0 +1,248 @@
+{
+  "id": "blood-donation",
+  "realm": "blood-donation",
+  "displayName": "BloodLink - Blood Donation",
+  "displayNameHtml": "<div class='kc-logo-text'><span>BloodLink</span></div>",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
+  "accessTokenLifespan": 3600,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "fr", "ar"],
+  "defaultLocale": "en",
+  "passwordPolicy": "length(8) and upperCase(1) and digits(1) and notUsername",
+  "clients": [
+    {
+      "clientId": "blood-donation-app",
+      "name": "BloodLink Mobile App",
+      "description": "React Native mobile app for blood donation",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "redirectUris": [
+        "exp://localhost:19000/*",
+        "bloodlink://auth",
+        "bloodlink://*",
+        "http://localhost:19006/*",
+        "https://auth.expo.io/@your-username/blood-donation-app"
+      ],
+      "webOrigins": ["*"],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "roles",
+        "profile",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "blood-donation-backend",
+      "name": "BloodLink Backend API",
+      "description": "Spring Boot backend service",
+      "enabled": true,
+      "publicClient": false,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "web-origins",
+        "roles",
+        "profile",
+        "email"
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "DONOR",
+        "description": "Blood donor - registered user who can donate blood",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "BENEFICIARY",
+        "description": "Blood recipient - user who needs blood",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "ADMIN",
+        "description": "Application administrator",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "Donors",
+      "path": "/Donors",
+      "realmRoles": ["DONOR"]
+    },
+    {
+      "name": "Beneficiaries",
+      "path": "/Beneficiaries",
+      "realmRoles": ["BENEFICIARY"]
+    }
+  ],
+  "userProfileConfig": {
+    "attributes": [
+      {
+        "name": "username",
+        "displayName": "${username}",
+        "validations": {
+          "length": { "min": 3, "max": 255 },
+          "username-prohibited-characters": {}
+        }
+      },
+      {
+        "name": "email",
+        "displayName": "${email}",
+        "validations": {
+          "email": {},
+          "length": { "max": 255 }
+        }
+      },
+      {
+        "name": "firstName",
+        "displayName": "${firstName}",
+        "validations": {
+          "length": { "max": 255 },
+          "person-name-prohibited-characters": {}
+        }
+      },
+      {
+        "name": "lastName",
+        "displayName": "${lastName}",
+        "validations": {
+          "length": { "max": 255 },
+          "person-name-prohibited-characters": {}
+        }
+      },
+      {
+        "name": "phoneNumber",
+        "displayName": "Phone Number",
+        "group": "user-meta",
+        "validations": {
+          "length": { "max": 20 }
+        },
+        "annotations": {},
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "city",
+        "displayName": "City",
+        "group": "user-meta",
+        "validations": {
+          "length": { "max": 100 }
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "bloodType",
+        "displayName": "Blood Type",
+        "group": "user-meta",
+        "validations": {
+          "options": {
+            "options": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+          }
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "country",
+        "displayName": "Country",
+        "group": "user-meta",
+        "validations": {
+          "length": { "max": 100 }
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      }
+    ],
+    "groups": [
+      {
+        "name": "user-meta",
+        "displayHeader": "User Information",
+        "displayDescription": "Additional user profile information"
+      }
+    ]
+  },
+  "smtpServer": {},
+  "eventsEnabled": true,
+  "eventsExpiration": 900,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "REGISTER",
+    "REGISTER_ERROR",
+    "LOGOUT",
+    "CODE_TO_TOKEN",
+    "CODE_TO_TOKEN_ERROR"
+  ],
+  "scopeMappings": [],
+  "clientScopeMappings": {},
+  "defaultDefaultClientScopes": [
+    "role_list",
+    "profile",
+    "email",
+    "web-origins"
+  ],
+  "defaultOptionalClientScopes": [
+    "offline_access",
+    "address",
+    "phone"
+  ]
+}

@@ -3,71 +3,158 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import * as React from 'react';
 
-import Colors from '../constants/Colors';
-import useColorScheme from '../hooks/useColorScheme';
-import TabOneScreen from '../screens/TabOneScreen';
-import TabTwoScreen from '../screens/TabTwoScreen';
-import { BottomTabParamList, TabOneParamList, TabTwoParamList } from '../types';
+import { Colors } from '../constants/Colors';
+import { AppTabParamList, SearchStackParamList, DonateStackParamList } from '../types';
+import HomeScreen from '../screens/HomeScreen';
+import SearchScreen from '../screens/SearchScreen';
+import DonorDetailScreen from '../screens/DonorDetailScreen';
+import DonateScreen from '../screens/DonateScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 
-const BottomTab = createBottomTabNavigator<BottomTabParamList>();
+const BottomTab = createBottomTabNavigator<AppTabParamList>();
 
 export default function BottomTabNavigator() {
-  const colorScheme = useColorScheme();
-
   return (
     <BottomTab.Navigator
-      initialRouteName="Beneficiary"
-      tabBarOptions={{ activeTintColor: Colors[colorScheme].tint }}>
+      initialRouteName="Home"
+      tabBarOptions={{
+        activeTintColor: Colors.Primary,
+        inactiveTintColor: Colors.TextSecondary,
+        style: {
+          backgroundColor: Colors.White,
+          borderTopWidth: 1,
+          borderTopColor: '#E0E0E0',
+          paddingBottom: 4,
+          paddingTop: 4,
+          height: 60,
+        },
+        labelStyle: {
+          fontSize: 11,
+          marginTop: 0,
+        },
+      }}>
       <BottomTab.Screen
-        name="Beneficiary"
-        component={TabOneNavigator}
+        name="Home"
+        component={HomeNavigator}
         options={{
-          tabBarIcon: ({ color }) => <TabBarIcon name="ios-code" color={color} />,
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={24}
+              color={color}
+            />
+          ),
         }}
       />
       <BottomTab.Screen
-        name="Giver"
-        component={TabTwoNavigator}
+        name="Search"
+        component={SearchNavigator}
         options={{
-          tabBarIcon: ({ color }) => <TabBarIcon name="ios-code" color={color} />,
+          tabBarLabel: 'Search',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'search' : 'search-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <BottomTab.Screen
+        name="Donate"
+        component={DonateNavigator}
+        options={{
+          tabBarLabel: 'Donate',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'heart' : 'heart-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <BottomTab.Screen
+        name="Profile"
+        component={ProfileNavigator}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'person' : 'person-outline'}
+              size={24}
+              color={color}
+            />
+          ),
         }}
       />
     </BottomTab.Navigator>
   );
 }
 
-// You can explore the built-in icon families and icons on the web at:
-// https://icons.expo.fyi/
-function TabBarIcon(props: { name: React.ComponentProps<typeof Ionicons>['name']; color: string }) {
-  return <Ionicons size={30} style={{ marginBottom: -3 }} {...props} />;
-}
+const HomeStack = createStackNavigator();
 
-// Each tab has its own navigation stack, you can read more about this pattern here:
-// https://reactnavigation.org/docs/tab-based-navigation#a-stack-navigator-for-each-tab
-const TabOneStack = createStackNavigator<TabOneParamList>();
-
-function TabOneNavigator() {
+function HomeNavigator() {
   return (
-    <TabOneStack.Navigator>
-      <TabOneStack.Screen
-        name="Beneficiary"
-        component={TabOneScreen}
-        options={{ headerTitle: 'Beneficiary' }}
+    <HomeStack.Navigator>
+      <HomeStack.Screen
+        name="HomeMain"
+        component={HomeScreen}
+        options={{ headerShown: false }}
       />
-    </TabOneStack.Navigator>
+    </HomeStack.Navigator>
   );
 }
 
-const TabTwoStack = createStackNavigator<TabTwoParamList>();
+const SearchStack = createStackNavigator<SearchStackParamList>();
 
-function TabTwoNavigator() {
+function SearchNavigator() {
   return (
-    <TabTwoStack.Navigator>
-      <TabTwoStack.Screen
-        name="Giver"
-        component={TabTwoScreen}
-        options={{ headerTitle: 'Giver' }}
+    <SearchStack.Navigator>
+      <SearchStack.Screen
+        name="SearchMain"
+        component={SearchScreen}
+        options={{ headerShown: false }}
       />
-    </TabTwoStack.Navigator>
+      <SearchStack.Screen
+        name="DonorDetail"
+        component={DonorDetailScreen}
+        options={{
+          headerTitle: 'Donor Details',
+          headerStyle: { backgroundColor: Colors.Primary },
+          headerTintColor: Colors.White,
+          headerTitleStyle: { fontWeight: 'bold' },
+        }}
+      />
+    </SearchStack.Navigator>
+  );
+}
+
+const DonateStack = createStackNavigator<DonateStackParamList>();
+
+function DonateNavigator() {
+  return (
+    <DonateStack.Navigator>
+      <DonateStack.Screen
+        name="DonateMain"
+        component={DonateScreen}
+        options={{ headerShown: false }}
+      />
+    </DonateStack.Navigator>
+  );
+}
+
+const ProfileStack = createStackNavigator();
+
+function ProfileNavigator() {
+  return (
+    <ProfileStack.Navigator>
+      <ProfileStack.Screen
+        name="ProfileMain"
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+    </ProfileStack.Navigator>
   );
 }

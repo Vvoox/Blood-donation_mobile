@@ -1,34 +1,61 @@
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import * as React from 'react';
 import { ColorSchemeName } from 'react-native';
+import { useSelector } from 'react-redux';
 
-import NotFoundScreen from '../screens/NotFoundScreen';
-import { RootStackParamList } from '../types';
+import { Colors } from '../constants/Colors';
+import { RootState } from '../redux/store';
+import { RootStackParamList, AuthStackParamList } from '../types';
 import BottomTabNavigator from './BottomTabNavigator';
-import LinkingConfiguration from './LinkingConfiguration';
+import SplashScreen from '../screens/SplashScreen';
+import LoginScreen from '../screens/LoginScreen';
+import RegisterScreen from '../screens/RegisterScreen';
 
-// If you are not familiar with React Navigation, we recommend going through the
-// "Fundamentals" guide: https://reactnavigation.org/docs/getting-started
-export default function Navigation({ colorScheme }: { colorScheme: ColorSchemeName }) {
+const BloodLinkTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: Colors.Primary,
+    background: Colors.Background,
+    card: Colors.White,
+    text: Colors.TextPrimary,
+    border: '#E0E0E0',
+    notification: Colors.PrimaryLight,
+  },
+};
+
+const RootStack = createStackNavigator<RootStackParamList>();
+const AuthStack = createStackNavigator<AuthStackParamList>();
+
+function AuthNavigator() {
   return (
-    <NavigationContainer
-      linking={LinkingConfiguration}
-      theme={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <RootNavigator />
-    </NavigationContainer>
+    <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen name="Splash" component={SplashScreen} />
+      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Register" component={RegisterScreen} />
+    </AuthStack.Navigator>
   );
 }
 
-// A root stack navigator is often used for displaying modals on top of all other content
-// Read more here: https://reactnavigation.org/docs/modal
-const Stack = createStackNavigator<RootStackParamList>();
-
 function RootNavigator() {
+  const token = useSelector((state: RootState) => state.auth.token);
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Root" component={BottomTabNavigator} />
-      <Stack.Screen name="NotFound" component={NotFoundScreen} options={{ title: 'Oops!' }} />
-    </Stack.Navigator>
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      {token ? (
+        <RootStack.Screen name="App" component={BottomTabNavigator} />
+      ) : (
+        <RootStack.Screen name="Auth" component={AuthNavigator} />
+      )}
+    </RootStack.Navigator>
+  );
+}
+
+export default function Navigation({ colorScheme }: { colorScheme: ColorSchemeName }) {
+  return (
+    <NavigationContainer theme={BloodLinkTheme}>
+      <RootNavigator />
+    </NavigationContainer>
   );
 }

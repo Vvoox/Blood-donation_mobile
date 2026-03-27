@@ -1,44 +1,64 @@
-import axios from "axios";
-import {config} from "../constants/api";
+import axios from 'axios';
+import { Config } from '../constants/config';
 
+const KEYCLOAK_TOKEN_URL = `${Config.KEYCLOAK_URL}/auth/realms/${Config.KEYCLOAK_REALM}/protocol/openid-connect/token`;
+const KEYCLOAK_USERINFO_URL = `${Config.KEYCLOAK_URL}/auth/realms/${Config.KEYCLOAK_REALM}/protocol/openid-connect/userinfo`;
 
-const keycloakFormData = () => {
-    const formData = new URLSearchParams();
-    formData.append('grant_type', 'password');
-    formData.append('client_id', 'ressource-server');
-    return formData;
-};
-
+// Module-level token storage (in-memory, no AsyncStorage)
 export const authState = {
-    token: ''
+  token: '',
+  refreshToken: '',
 };
 
-// export const login = (username: string, password: string) => {
-//     const body = keycloakFormData();
-//     body.append("username", username);
-//     body.append("password", password);
-//     return axios.post(config.AUTH_SERVER, body)
-//         .then(response => localStorage.setItem("access_token", response.data.access_token))
-//         .catch(error => console.log(error.data));
-// };
+export const login = async (username: string, password: string): Promise<{ access_token: string; refresh_token: string }> => {
+  const params = new URLSearchParams();
+  params.append('grant_type', 'password');
+  params.append('client_id', Config.KEYCLOAK_CLIENT_ID);
+  params.append('username', username);
+  params.append('password', password);
 
-export const loadUserInfo = (token: string) => {
-    // const {
-    //     ready, // If the discovery is already fetched
-    //     login, // The login function - opens the browser
-    //     isLoggedIn, // Helper boolean to use e.g. in your components down the tree
-    //     token, // Access token, if available
-    //     logout, // Logs the user out
-    // } = useKeycloak();
-    // const body = keycloakFormData();
-    // body.append("username", username);
-    // body.append("password", password);
-    return axios.get(config.API_URL + '/realms/ensapay/protocol/openid-connect/userinfo', {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    })
-    // return axios.post(config.AUTH_SERVER, body)
-    //     .then(response => localStorage.setItem("access_token", response.data.access_token))
-    //     .catch(error => console.log(error.data));
+  const response = await axios.post(KEYCLOAK_TOKEN_URL, params.toString(), {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  const { access_token, refresh_token } = response.data;
+  authState.token = access_token;
+  authState.refreshToken = refresh_token;
+
+  return { access_token, refresh_token };
+};
+
+export const getUserInfo = async (token: string): Promise<any> => {
+  const response = await axios.get(KEYCLOAK_USERINFO_URL, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
+export const refreshToken = async (refresh_token: string): Promise<{ access_token: string; refresh_token: string }> => {
+  const params = new URLSearchParams();
+  params.append('grant_type', 'refresh_token');
+  params.append('client_id', Config.KEYCLOAK_CLIENT_ID);
+  params.append('refresh_token', refresh_token);
+
+  const response = await axios.post(KEYCLOAK_TOKEN_URL, params.toString(), {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  const { access_token, refresh_token: new_refresh_token } = response.data;
+  authState.token = access_token;
+  authState.refreshToken = new_refresh_token;
+
+  return { access_token, refresh_token: new_refresh_token };
+};
+
+export const logout = (): void => {
+  authState.token = '';
+  authState.refreshToken = '';
 };

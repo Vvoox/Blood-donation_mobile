@@ -1,21 +1,26 @@
 export type RootStackParamList = {
-  Root: undefined;
-  NotFound: undefined;
+  Auth: undefined;
+  App: undefined;
 };
 
-export type BottomTabParamList = {
-  Beneficiary: undefined;
-  Giver: undefined;
+export type AuthStackParamList = {
+  Splash: undefined;
+  Login: undefined;
+  Register: undefined;
 };
 
-export type TabOneParamList = {
-  TabOneScreen: undefined;
-  Beneficiary: undefined;
-  Giver: undefined;
+export type AppTabParamList = {
+  Home: undefined;
+  Search: undefined;
+  Donate: undefined;
+  Profile: undefined;
 };
 
-export type TabTwoParamList = {
-  TabTwoScreen: undefined;
-  Beneficiary: undefined;
-  Giver: undefined;
+export type SearchStackParamList = {
+  SearchMain: undefined;
+  DonorDetail: { donor: any };
+};
+
+export type DonateStackParamList = {
+  DonateMain: undefined;
 };

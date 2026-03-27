@@ -1,11 +1,11 @@
 import { combineReducers } from 'redux';
-import {giverReducer} from "./giver-reducer";
-
-// export type ReduxAction<T> = (payload?: any) => CompteAction<T>;
+import giverReducer from './giver-reducer';
+import authReducer from './auth-reducer';
 
 const rootReducer = combineReducers({
-    // comptes: comptesReducer,
-    giver: giverReducer
+  givers: giverReducer,
+  auth: authReducer,
 });
 
+export type RootState = ReturnType<typeof rootReducer>;
 export default rootReducer;
