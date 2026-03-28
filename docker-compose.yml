@@ -1,54 +1,15 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: bloodlink-postgres
-    environment:
-      POSTGRES_DB: bloodlink
-      POSTGRES_USER: bloodlink
-      POSTGRES_PASSWORD: Bl00dLink2024!
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bloodlink -d bloodlink"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.7
-    container_name: bloodlink-keycloak
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-      KC_DB_USERNAME: bloodlink
-      KC_DB_PASSWORD: Bl00dLink2024!
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: Admin1234!
-      KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-    command: ["start-dev", "--import-realm"]
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   api:
     image: node:20-alpine
     container_name: bloodlink-api
+    restart: unless-stopped
     working_dir: /app
     environment:
-      DATABASE_URL: postgresql://bloodlink:Bl00dLink2024!@postgres:5432/bloodlink
+      DATABASE_URL: postgresql://mysqool_user:H8r@9jP!e4Lq2M^zT0wB@core-postgres:5432/bloodlink
       PORT: 8082
-      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_URL: https://keycloak.3olba.com
       KEYCLOAK_REALM: blood-donation
       KEYCLOAK_CLIENT_ID: blood-donation-app
     ports:
@@ -56,9 +17,13 @@ services:
     volumes:
       - ./backend:/app
     command: sh -c "npm install && node index.js"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - bloodlink-net
+      - komptelio-net
 
-volumes:
-  postgres_data:
+networks:
+  bloodlink-net:
+    driver: bridge
+  komptelio-net:
+    external: true
+    name: komptelio_default

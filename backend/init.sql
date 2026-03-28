@@ -1,8 +1,5 @@
--- Create keycloak database (postgres service creates bloodlink by default)
-CREATE DATABASE keycloak;
-
--- Connect to bloodlink db for app tables
-\c bloodlink;
+-- Run this against the existing core-postgres container:
+-- docker exec -i core-postgres psql -U mysqool_user -d bloodlink < backend/init.sql
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -54,10 +51,11 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Seed some blood requests for demo
+-- Seed demo requests
 INSERT INTO blood_requests (creator_id, creator_name, blood_types, city, country, people_needed, deadline, notes)
 VALUES
-  ('seed-1', 'Fatima Benali', '{"O+","O-"}', 'Casablanca', 'Morocco', 3, NOW() + INTERVAL '3 days', 'Urgent need after surgery'),
-  ('seed-2', 'Hassan Berrada', '{}', 'Casablanca', 'Morocco', 2, NOW() + INTERVAL '7 days', 'Any blood type welcome'),
-  ('seed-3', 'Zineb Lahlou', '{"A+"}', 'Rabat', 'Morocco', 1, NOW() + INTERVAL '24 hours', 'Critical - please help'),
-  ('seed-4', 'Karim Fassi', '{"B+","AB+"}', 'Marrakech', 'Morocco', 4, NOW() + INTERVAL '5 days', NULL);
+  ('seed-1', 'Fatima Benali',  '{"O+","O-"}', 'Casablanca', 'Morocco', 3, NOW() + INTERVAL '3 days',  'Urgent need after surgery'),
+  ('seed-2', 'Hassan Berrada', '{}',           'Casablanca', 'Morocco', 2, NOW() + INTERVAL '7 days',  'Any blood type welcome'),
+  ('seed-3', 'Zineb Lahlou',   '{"A+"}',       'Rabat',      'Morocco', 1, NOW() + INTERVAL '24 hours','Critical - please help'),
+  ('seed-4', 'Karim Fassi',    '{"B+","AB+"}', 'Marrakech',  'Morocco', 4, NOW() + INTERVAL '5 days',  NULL)
+ON CONFLICT DO NOTHING;
