@@ -11,9 +11,24 @@ export type AuthStackParamList = {
 
 export type AppTabParamList = {
   Home: undefined;
-  Search: undefined;
-  Donate: undefined;
+  Notifications: undefined;
+  Chats: undefined;
   Profile: undefined;
+};
+
+export type HomeStackParamList = {
+  HomeMain: undefined;
+  RequestDetail: { requestId: string };
+};
+
+export type ProfileStackParamList = {
+  ProfileMain: undefined;
+  CreateRequest: undefined;
+};
+
+export type ChatsStackParamList = {
+  ChatList: undefined;
+  Chat: { chatId: string };
 };
 
 export type SearchStackParamList = {

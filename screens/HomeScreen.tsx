@@ -1,8 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import * as React from 'react';
 import {
-  ScrollView,
+  ActivityIndicator,
+  Alert,
+  FlatList,
   StatusBar,
   StyleSheet,
   Text,
@@ -13,196 +16,248 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 
 import BloodTypeBadge from '../components/BloodTypeBadge';
-import DonorCard from '../components/DonorCard';
 import { Colors } from '../constants/Colors';
-import { GIVER_ACTIONS } from '../redux/reducers/giver-reducer';
+import { BloodRequest } from '../models/blood-request';
+import { REQUEST_ACTIONS } from '../redux/reducers/request-reducer';
 import { RootState } from '../redux/store';
-import { getAllGivers } from '../services/giver-service';
+import { getAllRequests, getRequestsByCity } from '../services/request-service';
+import { HomeStackParamList } from '../types';
 
-const COMPATIBILITY: Record<string, string[]> = {
-  'O-': ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'],
-  'O+': ['O+', 'A+', 'B+', 'AB+'],
-  'A-': ['A-', 'A+', 'AB-', 'AB+'],
-  'A+': ['A+', 'AB+'],
-  'B-': ['B-', 'B+', 'AB-', 'AB+'],
-  'B+': ['B+', 'AB+'],
-  'AB-': ['AB-', 'AB+'],
-  'AB+': ['AB+'],
-};
+type HomeNavProp = StackNavigationProp<HomeStackParamList, 'HomeMain'>;
+
+function timeRemaining(deadline: string): string {
+  const diff = new Date(deadline).getTime() - Date.now();
+  if (diff <= 0) return 'Expired';
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  if (hours < 24) return `${hours}h left`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days !== 1 ? 's' : ''} left`;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+interface RequestCardProps {
+  request: BloodRequest;
+  onPress: () => void;
+}
+
+function RequestCard({ request, onPress }: RequestCardProps) {
+  const progress = request.peopleNeeded > 0 ? request.acceptedCount / request.peopleNeeded : 0;
+  const isUrgent = new Date(request.deadline).getTime() - Date.now() < 24 * 60 * 60 * 1000;
+
+  return (
+    <TouchableOpacity style={styles.requestCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.cardTopRow}>
+        <View style={styles.bloodTypesRow}>
+          {request.bloodTypes.length === 0 ? (
+            <View style={styles.anyBloodBadge}>
+              <Ionicons name="water" size={13} color={Colors.Primary} />
+              <Text style={styles.anyBloodText}>Any Blood Type</Text>
+            </View>
+          ) : (
+            request.bloodTypes.slice(0, 4).map((bt) => (
+              <BloodTypeBadge key={bt} bloodType={bt} size="small" />
+            ))
+          )}
+          {request.bloodTypes.length > 4 && (
+            <Text style={styles.moreBadges}>+{request.bloodTypes.length - 4}</Text>
+          )}
+        </View>
+        <View style={[styles.urgentBadge, isUrgent ? styles.urgentBadgeRed : styles.urgentBadgeGray]}>
+          <Ionicons
+            name="time-outline"
+            size={11}
+            color={isUrgent ? Colors.Primary : Colors.TextSecondary}
+          />
+          <Text style={[styles.urgentText, isUrgent ? styles.urgentTextRed : styles.urgentTextGray]}>
+            {timeRemaining(request.deadline)}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.creatorName}>{request.creatorName}</Text>
+
+      <View style={styles.locationRow}>
+        <Ionicons name="location-outline" size={13} color={Colors.TextSecondary} />
+        <Text style={styles.locationText}>
+          {request.city}, {request.country}
+        </Text>
+        <Text style={styles.dotSep}>·</Text>
+        <Text style={styles.timeAgoText}>{timeAgo(request.createdAt)}</Text>
+      </View>
+
+      {request.notes ? (
+        <Text style={styles.notesPreview} numberOfLines={2}>
+          {request.notes}
+        </Text>
+      ) : null}
+
+      <View style={styles.progressSection}>
+        <View style={styles.progressLabelRow}>
+          <Text style={styles.progressLabel}>
+            {request.acceptedCount} of {request.peopleNeeded} donors found
+          </Text>
+          <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
+        </View>
+        <View style={styles.progressBarBg}>
+          <View style={[styles.progressBarFill, { width: `${Math.min(progress * 100, 100)}%` as any }]} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function HomeScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<HomeNavProp>();
   const dispatch = useDispatch();
-  const { givers, loading } = useSelector((state: RootState) => state.givers);
   const user = useSelector((state: RootState) => state.auth.user) as any;
+  const { requests, loading, error } = useSelector((state: RootState) => state.requests);
+  const unreadCount = useSelector((state: RootState) => state.notifications.unreadCount);
 
-  const recentDonors = React.useMemo(() => givers.slice(0, 5), [givers]);
-  const bloodTypesAvailable = React.useMemo(
-    () => new Set(givers.map((g) => g.typeBlood).filter(Boolean)).size,
-    [givers]
-  );
+  const userCity: string = user?.city || '';
+  const isLoggedIn = !!user;
+
+  const displayRequests = React.useMemo(() => {
+    if (!isLoggedIn || !userCity) return requests;
+    const cityLower = userCity.toLowerCase();
+    const cityRequests = requests.filter(
+      (r) => r.city.toLowerCase() === cityLower && r.status === 'active'
+    );
+    return cityRequests.length > 0 ? cityRequests : requests;
+  }, [requests, isLoggedIn, userCity]);
+
+  const loadRequests = React.useCallback(async () => {
+    dispatch({ type: REQUEST_ACTIONS.FETCH_REQUEST });
+    try {
+      let data: BloodRequest[];
+      if (isLoggedIn && userCity) {
+        data = await getRequestsByCity(userCity);
+        if (data.length === 0) {
+          data = await getAllRequests();
+        }
+      } else {
+        data = await getAllRequests();
+      }
+      dispatch({ type: REQUEST_ACTIONS.FETCH_SUCCESS, payload: data });
+    } catch (err) {
+      dispatch({ type: REQUEST_ACTIONS.FETCH_FAILURE, payload: 'Failed to load requests' });
+    }
+  }, [dispatch, isLoggedIn, userCity]);
 
   React.useEffect(() => {
-    loadGivers();
-  }, []);
+    loadRequests();
+  }, [loadRequests]);
 
-  const loadGivers = async () => {
-    dispatch({ type: GIVER_ACTIONS.FETCH_REQUEST });
-    try {
-      const data = await getAllGivers();
-      dispatch({ type: GIVER_ACTIONS.FETCH_SUCCESS, payload: data });
-    } catch (err) {
-      dispatch({ type: GIVER_ACTIONS.FETCH_FAILURE, payload: 'Failed to load donors' });
+  const handleCardPress = (request: BloodRequest) => {
+    if (!isLoggedIn) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to view request details and respond to blood donation requests.',
+        [{ text: 'OK' }]
+      );
+      return;
     }
+    navigation.navigate('RequestDetail', { requestId: request.id });
   };
 
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
-
-  const userName = user?.given_name || user?.name || user?.preferred_username || 'Friend';
-
-  const handleFindONegative = () => {
-    navigation.navigate('Search', {
-      screen: 'SearchMain',
-      params: { prefilterType: 'O-' },
-    });
-  };
-
-  const handleFindDonors = () => {
-    navigation.navigate('Search');
-  };
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="water-outline" size={64} color={Colors.TextSecondary} />
+      <Text style={styles.emptyTitle}>No requests in your city yet</Text>
+      <Text style={styles.emptySubtitle}>
+        There are currently no active blood donation requests
+        {userCity ? ` in ${userCity}` : ' in your area'}.
+      </Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.Primary} />
 
-      {/* Header */}
       <View style={styles.header}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerContent}>
-            <View>
-              <Text style={styles.greetingText}>{greeting()},</Text>
-              <Text style={styles.userNameText}>{userName}</Text>
+            <View style={styles.headerLeft}>
+              <Ionicons name="water" size={26} color={Colors.White} />
+              <Text style={styles.headerTitle}>BloodLink</Text>
             </View>
-            <View style={styles.headerLogo}>
-              <Ionicons name="water" size={28} color={Colors.White} />
-              <Text style={styles.headerLogoText}>BloodLink</Text>
+            <View style={styles.headerRight}>
+              {isLoggedIn && userCity ? (
+                <View style={styles.cityIndicator}>
+                  <Ionicons name="location" size={13} color={Colors.White} />
+                  <Text style={styles.cityIndicatorText}>{userCity}</Text>
+                </View>
+              ) : null}
+              {isLoggedIn && (
+                <TouchableOpacity style={styles.notifButton}>
+                  <Ionicons name="notifications-outline" size={24} color={Colors.White} />
+                  {unreadCount > 0 && (
+                    <View style={styles.notifBadge}>
+                      <Text style={styles.notifBadgeText}>
+                        {unreadCount > 9 ? '9+' : String(unreadCount)}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </SafeAreaView>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-
-        {/* Stats cards */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Ionicons name="people" size={28} color={Colors.Primary} />
-            <Text style={styles.statCardNumber}>{loading ? '...' : givers.length}</Text>
-            <Text style={styles.statCardLabel}>Total Donors</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Ionicons name="water" size={28} color={Colors.Primary} />
-            <Text style={styles.statCardNumber}>{bloodTypesAvailable}</Text>
-            <Text style={styles.statCardLabel}>Blood Types Available</Text>
-          </View>
+      {!isLoggedIn && (
+        <View style={styles.guestBanner}>
+          <Ionicons name="information-circle-outline" size={18} color={Colors.Warning} />
+          <Text style={styles.guestBannerText}>
+            Sign in to see requests in your city and respond to them
+          </Text>
         </View>
+      )}
 
-        {/* Emergency button */}
-        <TouchableOpacity
-          style={styles.emergencyButton}
-          onPress={handleFindONegative}
-          activeOpacity={0.85}>
-          <View style={styles.emergencyButtonLeft}>
-            <Ionicons name="warning" size={24} color={Colors.White} />
-            <View style={styles.emergencyButtonText}>
-              <Text style={styles.emergencyButtonTitle}>Emergency?</Text>
-              <Text style={styles.emergencyButtonSubtitle}>Find O- donors now</Text>
-            </View>
-          </View>
-          <View style={styles.emergencyBadge}>
-            <Text style={styles.emergencyBadgeText}>O-</Text>
-          </View>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>
+          {isLoggedIn && userCity ? `Requests in ${userCity}` : 'All Blood Requests'}
+        </Text>
+        <TouchableOpacity onPress={loadRequests}>
+          <Ionicons name="refresh-outline" size={20} color={Colors.Primary} />
         </TouchableOpacity>
+      </View>
 
-        {/* Quick search card */}
-        <TouchableOpacity
-          style={styles.quickSearchCard}
-          onPress={handleFindDonors}
-          activeOpacity={0.85}>
-          <View style={styles.quickSearchLeft}>
-            <View style={styles.quickSearchIcon}>
-              <Ionicons name="search" size={22} color={Colors.Primary} />
-            </View>
-            <View>
-              <Text style={styles.quickSearchTitle}>Find Donors</Text>
-              <Text style={styles.quickSearchSubtitle}>Search by blood type or city</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.TextSecondary} />
-        </TouchableOpacity>
-
-        {/* Recent donors */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Donors</Text>
-          <TouchableOpacity onPress={handleFindDonors}>
-            <Text style={styles.seeAllText}>See all</Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.Primary} />
+          <Text style={styles.loadingText}>Loading requests...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.Error} />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadRequests}>
+            <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading donors...</Text>
-          </View>
-        ) : recentDonors.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={48} color={Colors.TextSecondary} />
-            <Text style={styles.emptyText}>No donors found</Text>
-          </View>
-        ) : (
-          recentDonors.map((donor) => (
-            <DonorCard
-              key={donor.giverId}
-              donor={donor}
-              onPress={() =>
-                navigation.navigate('Search', {
-                  screen: 'DonorDetail',
-                  params: { donor },
-                })
-              }
-            />
-          ))
-        )}
-
-        {/* Blood type compatibility */}
-        <Text style={[styles.sectionTitle, { marginTop: 24, marginBottom: 12 }]}>
-          Blood Type Compatibility
-        </Text>
-        <View style={styles.compatibilityCard}>
-          <Text style={styles.compatibilityInfo}>
-            O- is the universal donor. AB+ is the universal recipient.
-          </Text>
-          <View style={styles.compatibilityRow}>
-            {['O-', 'O+', 'A+', 'B+', 'AB+', 'A-', 'B-', 'AB-'].map((type) => (
-              <View key={type} style={styles.compatibilityItem}>
-                <BloodTypeBadge bloodType={type} size="small" />
-                <Text style={styles.compatibilityCount}>
-                  {COMPATIBILITY[type]?.length ?? 1} types
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
+      ) : (
+        <FlatList
+          data={displayRequests}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <RequestCard request={item} onPress={() => handleCardPress(item)} />
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={renderEmptyState}
+        />
+      )}
     </View>
   );
 }
@@ -214,220 +269,277 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: Colors.Primary,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
   },
   headerContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 8,
   },
-  greetingText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  userNameText: {
+  headerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     color: Colors.White,
-    marginTop: 2,
+    letterSpacing: 1,
   },
-  headerLogo: {
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
   },
-  headerLogoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.White,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  statsRow: {
+  cityIndicator: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  statCard: {
+  cityIndicatorText: {
+    color: Colors.White,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  notifButton: {
+    position: 'relative',
+    padding: 2,
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: Colors.Warning,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    color: Colors.White,
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  guestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFE082',
+  },
+  guestBannerText: {
     flex: 1,
+    fontSize: 13,
+    color: '#795548',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.TextPrimary,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: Colors.TextSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: Colors.Error,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: Colors.Primary,
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: Colors.White,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.TextPrimary,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.TextSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  requestCard: {
     backgroundColor: Colors.White,
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
   },
-  statCardNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.TextPrimary,
-    marginTop: 8,
-  },
-  statCardLabel: {
-    fontSize: 12,
-    color: Colors.TextSecondary,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  emergencyButton: {
-    backgroundColor: Colors.PrimaryDark,
-    borderRadius: 16,
-    padding: 16,
+  cardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
-    shadowColor: Colors.Primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  emergencyButtonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  emergencyButtonText: {
-    flex: 1,
-  },
-  emergencyButtonTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.White,
-  },
-  emergencyButtonSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
-  emergencyBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  emergencyBadgeText: {
-    color: Colors.White,
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  quickSearchCard: {
-    backgroundColor: Colors.White,
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  quickSearchLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  quickSearchIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFEBEE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickSearchTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.TextPrimary,
-  },
-  quickSearchSubtitle: {
-    fontSize: 13,
-    color: Colors.TextSecondary,
-    marginTop: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 10,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.TextPrimary,
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: Colors.Primary,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: Colors.TextSecondary,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyText: {
-    color: Colors.TextSecondary,
-    fontSize: 15,
-  },
-  compatibilityCard: {
-    backgroundColor: Colors.White,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  compatibilityInfo: {
-    fontSize: 13,
-    color: Colors.TextSecondary,
-    marginBottom: 14,
-    lineHeight: 18,
-  },
-  compatibilityRow: {
+  bloodTypesRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
     flexWrap: 'wrap',
-    gap: 8,
-    justifyContent: 'center',
   },
-  compatibilityItem: {
+  anyBloodBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    width: 60,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
   },
-  compatibilityCount: {
-    fontSize: 10,
+  anyBloodText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.Primary,
+  },
+  moreBadges: {
+    fontSize: 12,
     color: Colors.TextSecondary,
-    textAlign: 'center',
+    fontWeight: '600',
   },
-  bottomPadding: {
-    height: 16,
+  urgentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  urgentBadgeRed: {
+    backgroundColor: '#FFEBEE',
+  },
+  urgentBadgeGray: {
+    backgroundColor: Colors.Background,
+  },
+  urgentText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  urgentTextRed: {
+    color: Colors.Primary,
+  },
+  urgentTextGray: {
+    color: Colors.TextSecondary,
+  },
+  creatorName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.TextPrimary,
+    marginBottom: 4,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
+  locationText: {
+    fontSize: 12,
+    color: Colors.TextSecondary,
+  },
+  dotSep: {
+    fontSize: 12,
+    color: Colors.TextSecondary,
+  },
+  timeAgoText: {
+    fontSize: 12,
+    color: Colors.TextSecondary,
+  },
+  notesPreview: {
+    fontSize: 13,
+    color: Colors.TextSecondary,
+    lineHeight: 18,
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
+  progressSection: {
+    marginTop: 4,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: Colors.TextSecondary,
+    fontWeight: '500',
+  },
+  progressPercent: {
+    fontSize: 12,
+    color: Colors.Primary,
+    fontWeight: '700',
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Colors.Primary,
+    borderRadius: 3,
   },
 });

@@ -2,25 +2,51 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import * as React from 'react';
+import { useSelector } from 'react-redux';
 
 import { Colors } from '../constants/Colors';
-import { AppTabParamList, SearchStackParamList, DonateStackParamList } from '../types';
+import {
+  AppTabParamList,
+  HomeStackParamList,
+  ProfileStackParamList,
+  ChatsStackParamList,
+  SearchStackParamList,
+} from '../types';
 import HomeScreen from '../screens/HomeScreen';
-import SearchScreen from '../screens/SearchScreen';
-import DonorDetailScreen from '../screens/DonorDetailScreen';
-import DonateScreen from '../screens/DonateScreen';
+import RequestDetailScreen from '../screens/RequestDetailScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import ChatListScreen from '../screens/ChatListScreen';
+import ChatScreen from '../screens/ChatScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import CreateRequestScreen from '../screens/CreateRequestScreen';
+import { RootState } from '../redux/store';
 
 const BottomTab = createBottomTabNavigator<AppTabParamList>();
 
 export default function BottomTabNavigator() {
+  const unreadNotifCount = useSelector(
+    (state: RootState) => state.notifications.unreadCount
+  );
+  const chats = useSelector((state: RootState) => state.chats.chats);
+  const user = useSelector((state: RootState) => state.auth.user) as any;
+  const userId = user?.sub || user?.id || '';
+
+  const unreadChatCount = React.useMemo(() => {
+    return chats.reduce((sum, c) => {
+      if (c.donorId !== userId && c.requesterId !== userId) return sum;
+      return (
+        sum + c.messages.filter((m) => m.senderId !== userId && !m.read).length
+      );
+    }, 0);
+  }, [chats, userId]);
+
   return (
     <BottomTab.Navigator
       initialRouteName="Home"
-      tabBarOptions={{
-        activeTintColor: Colors.Primary,
-        inactiveTintColor: Colors.TextSecondary,
-        style: {
+      screenOptions={{
+        tabBarActiveTintColor: Colors.Primary,
+        tabBarInactiveTintColor: Colors.TextSecondary,
+        tabBarStyle: {
           backgroundColor: Colors.White,
           borderTopWidth: 1,
           borderTopColor: '#E0E0E0',
@@ -28,10 +54,11 @@ export default function BottomTabNavigator() {
           paddingTop: 4,
           height: 60,
         },
-        labelStyle: {
+        tabBarLabelStyle: {
           fontSize: 11,
           marginTop: 0,
         },
+        headerShown: false,
       }}>
       <BottomTab.Screen
         name="Home"
@@ -39,8 +66,19 @@ export default function BottomTabNavigator() {
         options={{
           tabBarLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
+          ),
+        }}
+      />
+      <BottomTab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          tabBarLabel: 'Notifications',
+          tabBarBadge: unreadNotifCount > 0 ? unreadNotifCount : undefined,
+          tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'home' : 'home-outline'}
+              name={focused ? 'notifications' : 'notifications-outline'}
               size={24}
               color={color}
             />
@@ -48,27 +86,14 @@ export default function BottomTabNavigator() {
         }}
       />
       <BottomTab.Screen
-        name="Search"
-        component={SearchNavigator}
+        name="Chats"
+        component={ChatsNavigator}
         options={{
-          tabBarLabel: 'Search',
+          tabBarLabel: 'Messages',
+          tabBarBadge: unreadChatCount > 0 ? unreadChatCount : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'search' : 'search-outline'}
-              size={24}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <BottomTab.Screen
-        name="Donate"
-        component={DonateNavigator}
-        options={{
-          tabBarLabel: 'Donate',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'heart' : 'heart-outline'}
+              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
               size={24}
               color={color}
             />
@@ -93,68 +118,41 @@ export default function BottomTabNavigator() {
   );
 }
 
-const HomeStack = createStackNavigator();
+const HomeStack = createStackNavigator<HomeStackParamList>();
 
 function HomeNavigator() {
   return (
-    <HomeStack.Navigator>
+    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+      <HomeStack.Screen name="HomeMain" component={HomeScreen} />
       <HomeStack.Screen
-        name="HomeMain"
-        component={HomeScreen}
-        options={{ headerShown: false }}
+        name="RequestDetail"
+        component={RequestDetailScreen}
+        options={{
+          headerShown: false,
+        }}
       />
     </HomeStack.Navigator>
   );
 }
 
-const SearchStack = createStackNavigator<SearchStackParamList>();
+const ChatsStack = createStackNavigator<ChatsStackParamList>();
 
-function SearchNavigator() {
+function ChatsNavigator() {
   return (
-    <SearchStack.Navigator>
-      <SearchStack.Screen
-        name="SearchMain"
-        component={SearchScreen}
-        options={{ headerShown: false }}
-      />
-      <SearchStack.Screen
-        name="DonorDetail"
-        component={DonorDetailScreen}
-        options={{
-          headerTitle: 'Donor Details',
-          headerStyle: { backgroundColor: Colors.Primary },
-          headerTintColor: Colors.White,
-          headerTitleStyle: { fontWeight: 'bold' },
-        }}
-      />
-    </SearchStack.Navigator>
+    <ChatsStack.Navigator screenOptions={{ headerShown: false }}>
+      <ChatsStack.Screen name="ChatList" component={ChatListScreen} />
+      <ChatsStack.Screen name="Chat" component={ChatScreen} />
+    </ChatsStack.Navigator>
   );
 }
 
-const DonateStack = createStackNavigator<DonateStackParamList>();
-
-function DonateNavigator() {
-  return (
-    <DonateStack.Navigator>
-      <DonateStack.Screen
-        name="DonateMain"
-        component={DonateScreen}
-        options={{ headerShown: false }}
-      />
-    </DonateStack.Navigator>
-  );
-}
-
-const ProfileStack = createStackNavigator();
+const ProfileStack = createStackNavigator<ProfileStackParamList>();
 
 function ProfileNavigator() {
   return (
-    <ProfileStack.Navigator>
-      <ProfileStack.Screen
-        name="ProfileMain"
-        component={ProfileScreen}
-        options={{ headerShown: false }}
-      />
+    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+      <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
+      <ProfileStack.Screen name="CreateRequest" component={CreateRequestScreen} />
     </ProfileStack.Navigator>
   );
 }

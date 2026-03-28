@@ -43,7 +43,7 @@ function AvatarCircle({ name, size = 72 }: { name: string; size?: number }) {
   );
 }
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: { navigation?: any }) {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user) as any;
   const { givers } = useSelector((state: RootState) => state.givers);
@@ -141,6 +141,25 @@ export default function ProfileScreen() {
             ) : null}
           </View>
         </View>
+
+        {/* Create Blood Request button */}
+        <TouchableOpacity
+          style={styles.createRequestCard}
+          onPress={() => navigation?.navigate('CreateRequest')}
+          activeOpacity={0.85}>
+          <View style={styles.createRequestLeft}>
+            <View style={styles.createRequestIcon}>
+              <Ionicons name="add-circle" size={28} color={Colors.White} />
+            </View>
+            <View>
+              <Text style={styles.createRequestTitle}>Create Blood Request</Text>
+              <Text style={styles.createRequestSubtitle}>
+                Post a request for donors in your city
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
+        </TouchableOpacity>
 
         {/* Stats */}
         <View style={styles.statsRow}>
@@ -299,6 +318,44 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  createRequestCard: {
+    backgroundColor: Colors.Primary,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    shadowColor: Colors.Primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  createRequestLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  createRequestIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createRequestTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: Colors.White,
+    marginBottom: 2,
+  },
+  createRequestSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
   },
   profileHero: {
     backgroundColor: Colors.White,
