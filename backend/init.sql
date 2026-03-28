@@ -1,0 +1,63 @@
+-- Create keycloak database (postgres service creates bloodlink by default)
+CREATE DATABASE keycloak;
+
+-- Connect to bloodlink db for app tables
+\c bloodlink;
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE IF NOT EXISTS blood_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  creator_id VARCHAR(255) NOT NULL,
+  creator_name VARCHAR(255) NOT NULL,
+  blood_types TEXT[] NOT NULL DEFAULT '{}',
+  city VARCHAR(255) NOT NULL,
+  country VARCHAR(255) NOT NULL DEFAULT 'Morocco',
+  people_needed INTEGER NOT NULL DEFAULT 1,
+  accepted_count INTEGER NOT NULL DEFAULT 0,
+  deadline TIMESTAMPTZ NOT NULL,
+  notes TEXT,
+  status VARCHAR(50) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS request_acceptances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID REFERENCES blood_requests(id) ON DELETE CASCADE,
+  donor_id VARCHAR(255) NOT NULL,
+  donor_name VARCHAR(255) NOT NULL,
+  donor_blood_type VARCHAR(10),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(request_id, donor_id)
+);
+
+CREATE TABLE IF NOT EXISTS chats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID REFERENCES blood_requests(id) ON DELETE CASCADE,
+  donor_id VARCHAR(255) NOT NULL,
+  donor_name VARCHAR(255) NOT NULL,
+  donor_blood_type VARCHAR(10),
+  requester_id VARCHAR(255) NOT NULL,
+  requester_name VARCHAR(255) NOT NULL,
+  blood_types TEXT[] NOT NULL DEFAULT '{}',
+  city VARCHAR(255),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
+  sender_id VARCHAR(255) NOT NULL,
+  sender_name VARCHAR(255) NOT NULL,
+  text TEXT NOT NULL,
+  read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed some blood requests for demo
+INSERT INTO blood_requests (creator_id, creator_name, blood_types, city, country, people_needed, deadline, notes)
+VALUES
+  ('seed-1', 'Fatima Benali', '{"O+","O-"}', 'Casablanca', 'Morocco', 3, NOW() + INTERVAL '3 days', 'Urgent need after surgery'),
+  ('seed-2', 'Hassan Berrada', '{}', 'Casablanca', 'Morocco', 2, NOW() + INTERVAL '7 days', 'Any blood type welcome'),
+  ('seed-3', 'Zineb Lahlou', '{"A+"}', 'Rabat', 'Morocco', 1, NOW() + INTERVAL '24 hours', 'Critical - please help'),
+  ('seed-4', 'Karim Fassi', '{"B+","AB+"}', 'Marrakech', 'Morocco', 4, NOW() + INTERVAL '5 days', NULL);

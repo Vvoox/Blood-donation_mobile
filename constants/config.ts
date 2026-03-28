@@ -1,6 +1,9 @@
+// Replace YOUR_VPS_IP with your server's public IP address
+const VPS_IP = 'YOUR_VPS_IP';
+
 export const Config = {
-  KEYCLOAK_URL: 'https://keycloak.3olba.com',
+  KEYCLOAK_URL: `http://${VPS_IP}:8080`,
   KEYCLOAK_REALM: 'blood-donation',
   KEYCLOAK_CLIENT_ID: 'blood-donation-app',
-  API_URL: 'http://localhost:8082',
+  API_URL: `http://${VPS_IP}:8082`,
 };

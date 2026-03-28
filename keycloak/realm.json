@@ -1,0 +1,162 @@
+{
+  "realm": "blood-donation",
+  "enabled": true,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "resetPasswordAllowed": true,
+  "accessTokenLifespan": 3600,
+  "ssoSessionMaxLifespan": 86400,
+  "clients": [
+    {
+      "clientId": "blood-donation-app",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "attributes": {}
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Standard BloodLink user role",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "blood-donation"
+      }
+    ]
+  },
+  "defaultRoles": ["user"],
+  "users": [
+    {
+      "username": "test@bloodlink.com",
+      "email": "test@bloodlink.com",
+      "firstName": "Youssef",
+      "lastName": "El Mansouri",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test1234!",
+          "temporary": false
+        }
+      ],
+      "attributes": {
+        "city": ["Casablanca"],
+        "country": ["Morocco"],
+        "bloodType": ["O+"],
+        "phoneNumber": ["+212661234567"]
+      },
+      "realmRoles": ["user"]
+    }
+  ],
+  "userProfileConfig": {
+    "attributes": [
+      {
+        "name": "username",
+        "displayName": "${username}",
+        "validations": {
+          "length": { "min": 3, "max": 255 },
+          "username-prohibited-characters": {}
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "email",
+        "displayName": "${email}",
+        "validations": {
+          "email": {},
+          "length": { "max": 255 }
+        },
+        "required": {
+          "roles": ["user"]
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "firstName",
+        "displayName": "${firstName}",
+        "validations": {
+          "length": { "max": 255 },
+          "person-name-prohibited-characters": {}
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "lastName",
+        "displayName": "${lastName}",
+        "validations": {
+          "length": { "max": 255 },
+          "person-name-prohibited-characters": {}
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "city",
+        "displayName": "City",
+        "validations": {
+          "length": { "max": 255 }
+        },
+        "required": {
+          "roles": ["user"]
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "country",
+        "displayName": "Country",
+        "validations": {
+          "length": { "max": 255 }
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "bloodType",
+        "displayName": "Blood Type",
+        "validations": {
+          "length": { "max": 10 }
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      },
+      {
+        "name": "phoneNumber",
+        "displayName": "Phone Number",
+        "validations": {
+          "length": { "max": 50 }
+        },
+        "permissions": {
+          "view": ["admin", "user"],
+          "edit": ["admin", "user"]
+        }
+      }
+    ]
+  }
+}
