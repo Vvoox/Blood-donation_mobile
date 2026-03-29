@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { Config } from '../constants/config';
 
-const KEYCLOAK_TOKEN_URL = `${Config.KEYCLOAK_URL}/auth/realms/${Config.KEYCLOAK_REALM}/protocol/openid-connect/token`;
-const KEYCLOAK_USERINFO_URL = `${Config.KEYCLOAK_URL}/auth/realms/${Config.KEYCLOAK_REALM}/protocol/openid-connect/userinfo`;
+const KEYCLOAK_TOKEN_URL = `${Config.KEYCLOAK_URL}/realms/${Config.KEYCLOAK_REALM}/protocol/openid-connect/token`;
+const KEYCLOAK_USERINFO_URL = `${Config.KEYCLOAK_URL}/realms/${Config.KEYCLOAK_REALM}/protocol/openid-connect/userinfo`;
 
 // Module-level token storage (in-memory, no AsyncStorage)
 export const authState = {
