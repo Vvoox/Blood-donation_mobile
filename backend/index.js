@@ -14,7 +14,7 @@ const KEYCLOAK_URL = process.env.KEYCLOAK_URL || 'http://keycloak:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'blood-donation';
 const KEYCLOAK_ADMIN_REALM = process.env.KEYCLOAK_ADMIN_REALM || 'master';
 const KEYCLOAK_ADMIN_CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'blood-donation-admin';
-const KEYCLOAK_ADMIN_CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || '';
+const KEYCLOAK_ADMIN_CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || 'uvp5eBMXAl2pspV8GceswpOAo588KnnT';
 
 // ─── Database ────────────────────────────────────────────────────────────────
 const pool = new Pool({
