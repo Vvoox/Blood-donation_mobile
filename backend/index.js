@@ -13,9 +13,8 @@ const PORT = process.env.PORT || 8082;
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL || 'http://keycloak:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'blood-donation';
 const KEYCLOAK_ADMIN_REALM = process.env.KEYCLOAK_ADMIN_REALM || 'master';
-const KEYCLOAK_ADMIN_CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
-const KEYCLOAK_ADMIN_USERNAME = process.env.KEYCLOAK_ADMIN_USERNAME || '';
-const KEYCLOAK_ADMIN_PASSWORD = process.env.KEYCLOAK_ADMIN_PASSWORD || '';
+const KEYCLOAK_ADMIN_CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'blood-donation-admin';
+const KEYCLOAK_ADMIN_CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || '';
 
 // ─── Database ────────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -54,18 +53,17 @@ function getSigningKey(header, callback) {
 }
 
 async function getKeycloakAdminToken() {
-  if (!KEYCLOAK_ADMIN_USERNAME || !KEYCLOAK_ADMIN_PASSWORD) {
-    const error = new Error('Keycloak admin credentials are not configured');
+  if (!KEYCLOAK_ADMIN_CLIENT_ID || !KEYCLOAK_ADMIN_CLIENT_SECRET) {
+    const error = new Error('Keycloak admin client credentials are not configured');
     error.status = 500;
     throw error;
   }
 
   const tokenURL = `${KEYCLOAK_URL}/realms/${KEYCLOAK_ADMIN_REALM}/protocol/openid-connect/token`;
   const body = new URLSearchParams({
-    grant_type: 'password',
+    grant_type: 'client_credentials',
     client_id: KEYCLOAK_ADMIN_CLIENT_ID,
-    username: KEYCLOAK_ADMIN_USERNAME,
-    password: KEYCLOAK_ADMIN_PASSWORD,
+    client_secret: KEYCLOAK_ADMIN_CLIENT_SECRET,
   });
 
   const response = await fetch(tokenURL, {
