@@ -45,5 +45,8 @@
     "jest-expo": "~54.0.0",
     "typescript": "~5.3.3"
   },
-  "private": true
+  "private": true,
+  "resolutions": {
+    "expo-modules-core": "2.2.2"
+  }
 }
