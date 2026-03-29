@@ -8,25 +8,41 @@ struct SignInPromptView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: icon)
-                .font(.system(size: 56))
-                .foregroundColor(.gray)
-            Text(message)
-                .font(.headline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.776, green: 0.157, blue: 0.157).opacity(0.12))
+                    .frame(width: 88, height: 88)
+                Image(systemName: icon)
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundColor(Color(red: 0.776, green: 0.157, blue: 0.157))
+            }
+
+            VStack(spacing: 8) {
+                Text("Sign in to continue")
+                    .font(.title3)
+                    .fontWeight(.bold)
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
             Button("Sign In") {
                 showLogin = true
             }
             .fontWeight(.semibold)
             .foregroundColor(.white)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
             .background(Color(red: 0.776, green: 0.157, blue: 0.157))
-            .cornerRadius(12)
+            .cornerRadius(14)
         }
-        .padding(32)
+        .padding(24)
+        .background(Color(.systemBackground))
+        .cornerRadius(20)
+        .padding(24)
         .sheet(isPresented: $showLogin) {
             LoginView()
                 .environmentObject(authService)

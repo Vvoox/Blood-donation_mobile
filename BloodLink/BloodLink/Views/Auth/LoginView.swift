@@ -4,6 +4,7 @@ struct LoginView: View {
     @EnvironmentObject var authService: AuthService
     @State private var email = ""
     @State private var password = ""
+    @State private var showRegister = false
 
     var body: some View {
         ZStack {
@@ -63,6 +64,20 @@ struct LoginView: View {
                         .frame(height: 52)
                     }
                     .disabled(authService.isLoading || email.isEmpty || password.isEmpty)
+
+                    Button {
+                        showRegister = true
+                    } label: {
+                        Text("Create a new account")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.8), lineWidth: 1)
+                            )
+                    }
                 }
                 .padding(.horizontal, 32)
 
@@ -73,6 +88,10 @@ struct LoginView: View {
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.bottom, 24)
             }
+        }
+        .sheet(isPresented: $showRegister) {
+            RegisterView()
+                .environmentObject(authService)
         }
     }
 }

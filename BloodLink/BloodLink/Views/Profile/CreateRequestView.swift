@@ -5,6 +5,7 @@ struct CreateRequestView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var selectedBloodTypes: Set<String> = []
+    @State private var acceptAnyBloodType = false
     @State private var city = ""
     @State private var donorsNeeded = 1
     @State private var deadline = Date().addingTimeInterval(7 * 86400)
@@ -19,6 +20,9 @@ struct CreateRequestView: View {
         NavigationView {
             Form {
                 Section("Blood Types Needed") {
+                    Toggle("Accept any blood type", isOn: $acceptAnyBloodType)
+                        .tint(Color(red: 0.776, green: 0.157, blue: 0.157))
+
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
                         ForEach(bloodTypes, id: \.self) { bt in
                             BloodTypeToggle(type: bt, isSelected: selectedBloodTypes.contains(bt)) {
@@ -31,6 +35,8 @@ struct CreateRequestView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .opacity(acceptAnyBloodType ? 0.4 : 1)
+                    .disabled(acceptAnyBloodType)
                 }
 
                 Section("Location & Details") {
@@ -69,7 +75,12 @@ struct CreateRequestView: View {
                             Text("Post").bold()
                         }
                     }
-                    .disabled(selectedBloodTypes.isEmpty || city.isEmpty || isSubmitting)
+                    .disabled((selectedBloodTypes.isEmpty && !acceptAnyBloodType) || city.isEmpty || isSubmitting)
+                }
+            }
+            .onAppear {
+                if city.isEmpty {
+                    city = authService.currentUser?.city ?? ""
                 }
             }
         }
@@ -85,7 +96,7 @@ struct CreateRequestView: View {
 
         do {
             _ = try await APIService.shared.createRequest(
-                bloodTypes: Array(selectedBloodTypes),
+                bloodTypes: acceptAnyBloodType ? [] : Array(selectedBloodTypes),
                 city: city,
                 donorsNeeded: donorsNeeded,
                 deadline: deadlineStr,

@@ -11,6 +11,8 @@ struct ChatView: View {
     @State private var isLoading = false
 
     var body: some View {
+        let otherUserName = chat.donorId == authService.currentUser?.id ? chat.requesterName : chat.donorName
+
         NavigationView {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
@@ -58,7 +60,7 @@ struct ChatView: View {
                 .padding(.vertical, 8)
                 .background(Color(.systemBackground))
             }
-            .navigationTitle(chat.otherUserName)
+            .navigationTitle(otherUserName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

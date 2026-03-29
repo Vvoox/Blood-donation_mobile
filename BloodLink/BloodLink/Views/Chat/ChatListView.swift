@@ -31,7 +31,7 @@ struct ChatListView: View {
                     .padding()
                 } else {
                     List(chats) { chat in
-                        ChatRow(chat: chat)
+                        ChatRow(chat: chat, currentUserId: authService.currentUser?.id ?? "")
                             .listRowSeparator(.hidden)
                             .contentShape(Rectangle())
                             .onTapGesture { selectedChat = chat }
@@ -68,32 +68,35 @@ struct ChatListView: View {
 
 struct ChatRow: View {
     let chat: Chat
+    let currentUserId: String
 
     var body: some View {
+        let otherUserName = chat.donorId == currentUserId ? chat.requesterName : chat.donorName
+
         HStack(spacing: 12) {
             ZStack {
                 Circle()
                     .fill(Color(red: 0.776, green: 0.157, blue: 0.157))
                     .frame(width: 50, height: 50)
-                Text(chat.otherUserName.prefix(1).uppercased())
+                Text(otherUserName.prefix(1).uppercased())
                     .font(.title3).bold()
                     .foregroundColor(.white)
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(chat.otherUserName)
+                    Text(otherUserName)
                         .font(.headline)
                     Spacer()
-                    if let lastMsg = chat.lastMessage {
-                        Text(formatDate(lastMsg.createdAt))
+                    if let lastMessageAt = chat.lastMessageAt {
+                        Text(formatDate(lastMessageAt))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
 
                 HStack {
-                    Text(chat.lastMessage?.content ?? "No messages yet")
+                    Text(chat.lastMessageText ?? "No messages yet")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(1)

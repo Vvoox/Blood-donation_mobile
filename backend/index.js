@@ -1,5 +1,7 @@
 'use strict';
 
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -23,6 +25,21 @@ const jwks = jwksClient({
   cacheMaxEntries: 5,
   cacheMaxAge: 600000, // 10 minutes
 });
+
+function firstValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] || '';
+  }
+  return value || '';
+}
+
+function normalizeRequestRow(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    blood_types: Array.isArray(row.blood_types) ? row.blood_types : [],
+  };
+}
 
 function getSigningKey(header, callback) {
   jwks.getSigningKey(header.kid, (err, key) => {
@@ -65,8 +82,8 @@ function requireAuth(req, res, next) {
       userId: decoded.sub,
       name: fullName,
       email: decoded.email || '',
-      city: decoded.city || attributes.city || '',
-      bloodType: decoded.bloodType || attributes.bloodType || decoded.blood_type || '',
+      city: firstValue(decoded.city) || firstValue(attributes.city) || '',
+      bloodType: firstValue(decoded.bloodType) || firstValue(attributes.bloodType) || firstValue(decoded.blood_type) || '',
     };
 
     next();
@@ -80,13 +97,62 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Get all active blood requests
+// Database health check
+app.get('/health/db', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('GET /health/db error:', err);
+    res.status(500).json({ status: 'error', database: 'disconnected', details: err.message });
+  }
+});
+
+// Get all requests, with optional search filters
 app.get('/requests', async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM blood_requests ORDER BY created_at DESC`
-    );
-    res.json(result.rows);
+    const { city, status, bloodType, creatorId, q } = req.query;
+    const where = [];
+    const values = [];
+
+    if (city) {
+      values.push(String(city));
+      where.push(`LOWER(city) = LOWER($${values.length})`);
+    }
+
+    if (status) {
+      values.push(String(status));
+      where.push(`LOWER(status) = LOWER($${values.length})`);
+    }
+
+    if (bloodType) {
+      values.push(String(bloodType));
+      where.push(`($${values.length} = ANY(blood_types) OR cardinality(blood_types) = 0)`);
+    }
+
+    if (creatorId) {
+      values.push(String(creatorId));
+      where.push(`creator_id = $${values.length}`);
+    }
+
+    if (q) {
+      values.push(`%${String(q).trim()}%`);
+      where.push(`(
+        creator_name ILIKE $${values.length}
+        OR city ILIKE $${values.length}
+        OR COALESCE(notes, '') ILIKE $${values.length}
+      )`);
+    }
+
+    const query = `
+      SELECT *
+      FROM blood_requests
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY created_at DESC
+    `;
+
+    const result = await pool.query(query, values);
+    res.json(result.rows.map(normalizeRequestRow));
   } catch (err) {
     console.error('GET /requests error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -101,9 +167,29 @@ app.get('/requests/city/:city', async (req, res) => {
       `SELECT * FROM blood_requests WHERE LOWER(city) = LOWER($1) ORDER BY created_at DESC`,
       [city]
     );
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeRequestRow));
   } catch (err) {
     console.error('GET /requests/city/:city error:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Get a single blood request
+app.get('/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT * FROM blood_requests WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Blood request not found' });
+    }
+
+    res.json(normalizeRequestRow(result.rows[0]));
+  } catch (err) {
+    console.error('GET /requests/:id error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
@@ -117,7 +203,7 @@ app.get('/requests/my', requireAuth, async (req, res) => {
       `SELECT * FROM blood_requests WHERE creator_id = $1 ORDER BY created_at DESC`,
       [req.user.userId]
     );
-    res.json(result.rows);
+    res.json(result.rows.map(normalizeRequestRow));
   } catch (err) {
     console.error('GET /requests/my error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -127,7 +213,12 @@ app.get('/requests/my', requireAuth, async (req, res) => {
 // Create a new blood request
 app.post('/requests', requireAuth, async (req, res) => {
   try {
-    const { bloodTypes, city, country, peopleNeeded, deadline, notes } = req.body;
+    const bloodTypes = req.body.bloodTypes || req.body.blood_types || [];
+    const city = req.body.city;
+    const country = req.body.country;
+    const peopleNeeded = req.body.peopleNeeded || req.body.people_needed;
+    const deadline = req.body.deadline;
+    const notes = req.body.notes;
 
     if (!city || !deadline) {
       return res.status(400).json({ error: 'city and deadline are required' });
@@ -150,9 +241,81 @@ app.post('/requests', requireAuth, async (req, res) => {
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(normalizeRequestRow(result.rows[0]));
   } catch (err) {
     console.error('POST /requests error:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Update a blood request created by the logged-in user
+app.put('/requests/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await pool.query(
+      `SELECT * FROM blood_requests WHERE id = $1`,
+      [id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Blood request not found' });
+    }
+
+    const current = existing.rows[0];
+    if (current.creator_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only update your own requests' });
+    }
+
+    const bloodTypes = req.body.bloodTypes || req.body.blood_types || current.blood_types;
+    const city = req.body.city || current.city;
+    const country = req.body.country || current.country;
+    const peopleNeeded = req.body.peopleNeeded || req.body.people_needed || current.people_needed;
+    const deadline = req.body.deadline || current.deadline;
+    const notes = Object.prototype.hasOwnProperty.call(req.body, 'notes') ? req.body.notes : current.notes;
+    const status = req.body.status || current.status;
+
+    const result = await pool.query(
+      `UPDATE blood_requests
+       SET blood_types = $2,
+           city = $3,
+           country = $4,
+           people_needed = $5,
+           deadline = $6,
+           notes = $7,
+           status = $8
+       WHERE id = $1
+       RETURNING *`,
+      [id, bloodTypes, city, country, peopleNeeded, deadline, notes || null, status]
+    );
+
+    res.json(normalizeRequestRow(result.rows[0]));
+  } catch (err) {
+    console.error('PUT /requests/:id error:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Delete a blood request created by the logged-in user
+app.delete('/requests/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await pool.query(
+      `SELECT id, creator_id FROM blood_requests WHERE id = $1`,
+      [id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Blood request not found' });
+    }
+
+    if (existing.rows[0].creator_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only delete your own requests' });
+    }
+
+    await pool.query(`DELETE FROM blood_requests WHERE id = $1`, [id]);
+    res.status(204).send();
+  } catch (err) {
+    console.error('DELETE /requests/:id error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });

@@ -4,10 +4,18 @@ class APIService {
     static let shared = APIService()
     private let baseURL = "http://85.31.233.69:8082"
 
+    private struct ChatDetailResponse: Decodable {
+        let chat: Chat
+        let messages: [Message]
+    }
+
     func fetchRequests(city: String? = nil, token: String? = nil) async throws -> [BloodRequest] {
-        var urlStr = "\(baseURL)/requests"
+        let urlStr: String
         if let city = city, !city.isEmpty {
-            urlStr += "?city=\(city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city)"
+            let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? city
+            urlStr = "\(baseURL)/requests/city/\(encodedCity)"
+        } else {
+            urlStr = "\(baseURL)/requests"
         }
         guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
 
@@ -30,9 +38,9 @@ class APIService {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let body: [String: Any] = [
-            "blood_types": bloodTypes,
+            "bloodTypes": bloodTypes,
             "city": city,
-            "donors_needed": donorsNeeded,
+            "peopleNeeded": donorsNeeded,
             "deadline": deadline,
             "notes": notes
         ]
@@ -63,13 +71,13 @@ class APIService {
     }
 
     func fetchMessages(chatId: String, token: String) async throws -> [Message] {
-        guard let url = URL(string: "\(baseURL)/chats/\(chatId)/messages") else { throw URLError(.badURL) }
+        guard let url = URL(string: "\(baseURL)/chats/\(chatId)") else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let (data, _) = try await URLSession.shared.data(for: request)
-        return try JSONDecoder().decode([Message].self, from: data)
+        return try JSONDecoder().decode(ChatDetailResponse.self, from: data).messages
     }
 
     func fetchNotifications(token: String) async throws -> [AppNotification] {
@@ -90,7 +98,7 @@ class APIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let body = ["content": content]
+        let body = ["text": content]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, _) = try await URLSession.shared.data(for: request)

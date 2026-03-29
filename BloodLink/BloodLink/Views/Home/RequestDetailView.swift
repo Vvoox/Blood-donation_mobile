@@ -13,13 +13,22 @@ struct RequestDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack {
-                        ForEach(request.bloodTypes, id: \.self) { bt in
-                            Text(bt)
+                        if request.bloodTypes.isEmpty {
+                            Text("Any Blood Type")
                                 .font(.title3).bold()
                                 .padding(.horizontal, 14).padding(.vertical, 8)
                                 .background(Color(red: 0.776, green: 0.157, blue: 0.157))
                                 .foregroundColor(.white)
                                 .cornerRadius(8)
+                        } else {
+                            ForEach(request.bloodTypes, id: \.self) { bt in
+                                Text(bt)
+                                    .font(.title3).bold()
+                                    .padding(.horizontal, 14).padding(.vertical, 8)
+                                    .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                            }
                         }
                     }
 
@@ -65,6 +74,11 @@ struct RequestDetailView: View {
                             }
                         }
                         .disabled(isAccepting)
+                    } else if !authService.isLoggedIn {
+                        SignInPromptView(
+                            icon: "person.crop.circle.badge.exclamationmark",
+                            message: "Sign in to accept this request and open a chat with the requester."
+                        )
                     }
                 }
                 .padding()

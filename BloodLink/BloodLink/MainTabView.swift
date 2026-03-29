@@ -7,17 +7,17 @@ struct MainTabView: View {
         TabView {
             HomeView()
                 .tabItem {
-                    Label("Home", systemImage: "drop.fill")
+                    Label("Home", systemImage: "house.fill")
                 }
 
             NotificationsView()
                 .tabItem {
-                    Label("Notifications", systemImage: "bell.fill")
+                    Label("Alerts", systemImage: "bell.badge.fill")
                 }
 
             ChatListView()
                 .tabItem {
-                    Label("Messages", systemImage: "message.fill")
+                    Label("Chats", systemImage: "message.fill")
                 }
 
             ProfileView()

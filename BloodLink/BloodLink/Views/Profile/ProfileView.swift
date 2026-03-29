@@ -8,19 +8,30 @@ struct ProfileView: View {
         if authService.isLoggedIn {
             loggedInView
         } else {
-            LoginView()
+            NavigationView {
+                ZStack {
+                    Color(.systemGroupedBackground)
+                        .ignoresSafeArea()
+
+                    SignInPromptView(
+                        icon: "person.crop.circle.badge.plus",
+                        message: "Sign in or register to create a blood request, receive city alerts, and chat with donors."
+                    )
+                }
+                .navigationTitle("Profile")
+            }
         }
     }
 
     var loggedInView: some View {
         NavigationView {
-            List {
-                Section {
-                    VStack(spacing: 12) {
+            ScrollView {
+                VStack(spacing: 18) {
+                    VStack(spacing: 14) {
                         ZStack {
                             Circle()
                                 .fill(Color(red: 0.776, green: 0.157, blue: 0.157))
-                                .frame(width: 80, height: 80)
+                                .frame(width: 86, height: 86)
                             Text(authService.currentUser?.name.prefix(1).uppercased() ?? "?")
                                 .font(.largeTitle).bold().foregroundColor(.white)
                         }
@@ -30,41 +41,72 @@ struct ProfileView: View {
                             .font(.subheadline).foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                }
+                    .padding(20)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(22)
 
-                Section("My Info") {
-                    ProfileRow(
-                        icon: "drop.fill",
-                        label: "Blood Type",
-                        value: authService.currentUser?.bloodType.isEmpty == false
-                            ? authService.currentUser!.bloodType : "Not set"
-                    )
-                    ProfileRow(
-                        icon: "location.fill",
-                        label: "City",
-                        value: authService.currentUser?.city.isEmpty == false
-                            ? authService.currentUser!.city : "Not set"
-                    )
-                }
+                    VStack(spacing: 12) {
+                        ProfileRow(
+                            icon: "drop.fill",
+                            label: "Blood Type",
+                            value: authService.currentUser?.bloodType.isEmpty == false
+                                ? authService.currentUser!.bloodType : "Not set"
+                        )
+                        Divider()
+                        ProfileRow(
+                            icon: "location.fill",
+                            label: "City",
+                            value: authService.currentUser?.city.isEmpty == false
+                                ? authService.currentUser!.city : "Not set"
+                        )
+                    }
+                    .padding(18)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(22)
 
-                Section {
                     Button {
                         showCreateRequest = true
                     } label: {
-                        Label("Create Blood Request", systemImage: "plus.circle.fill")
-                            .foregroundColor(Color(red: 0.776, green: 0.157, blue: 0.157))
-                            .fontWeight(.semibold)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Need blood urgently?")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("Create a request and notify nearby donors in your city.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.86))
+                                    .multilineTextAlignment(.leading)
+                            }
+                            Spacer()
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(.white)
+                        }
+                        .padding(18)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.776, green: 0.157, blue: 0.157),
+                                    Color(red: 0.651, green: 0.09, blue: 0.09)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .cornerRadius(22)
                     }
-                }
 
-                Section {
                     Button(role: .destructive) {
                         authService.logout()
                     } label: {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .padding(18)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(22)
                 }
+                .padding(16)
             }
             .navigationTitle("Profile")
             .sheet(isPresented: $showCreateRequest) {

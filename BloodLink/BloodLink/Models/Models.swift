@@ -22,6 +22,7 @@ struct BloodRequest: Codable, Identifiable {
     var requesterName: String
     var bloodTypes: [String]
     var city: String
+    var country: String?
     var donorsNeeded: Int
     var donorsAccepted: Int
     var deadline: String
@@ -31,12 +32,13 @@ struct BloodRequest: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case requesterId = "requester_id"
-        case requesterName = "requester_name"
+        case requesterId = "creator_id"
+        case requesterName = "creator_name"
         case bloodTypes = "blood_types"
         case city
-        case donorsNeeded = "donors_needed"
-        case donorsAccepted = "donors_accepted"
+        case country
+        case donorsNeeded = "people_needed"
+        case donorsAccepted = "accepted_count"
         case deadline
         case notes
         case status
@@ -48,31 +50,29 @@ struct Chat: Codable, Identifiable {
     var id: String
     var requestId: String
     var donorId: String
+    var donorName: String
     var requesterId: String
-    var otherUserName: String
-    var lastMessage: ChatPreview?
+    var requesterName: String
+    var bloodTypes: [String]
+    var city: String
+    var lastMessageText: String?
+    var lastMessageAt: String?
     var unreadCount: Int
-    var updatedAt: String
-
-    struct ChatPreview: Codable {
-        var content: String
-        var createdAt: String
-
-        enum CodingKeys: String, CodingKey {
-            case content
-            case createdAt = "created_at"
-        }
-    }
+    var createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id
         case requestId = "request_id"
         case donorId = "donor_id"
+        case donorName = "donor_name"
         case requesterId = "requester_id"
-        case otherUserName = "other_user_name"
-        case lastMessage = "last_message"
+        case requesterName = "requester_name"
+        case bloodTypes = "blood_types"
+        case city
+        case lastMessageText = "last_message"
+        case lastMessageAt = "last_message_at"
         case unreadCount = "unread_count"
-        case updatedAt = "updated_at"
+        case createdAt = "created_at"
     }
 }
 
@@ -80,15 +80,19 @@ struct Message: Codable, Identifiable {
     var id: String
     var chatId: String
     var senderId: String
+    var senderName: String
     var content: String
     var createdAt: String
+    var isRead: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
         case chatId = "chat_id"
         case senderId = "sender_id"
-        case content
+        case senderName = "sender_name"
+        case content = "text"
         case createdAt = "created_at"
+        case isRead = "read"
     }
 }
 

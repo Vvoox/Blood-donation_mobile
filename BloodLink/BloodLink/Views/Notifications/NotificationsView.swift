@@ -23,8 +23,12 @@ struct NotificationsView: View {
                             .font(.system(size: 48))
                             .foregroundColor(.gray)
                         Text("No notifications yet")
+                            .font(.headline)
+                        Text("When someone in your city creates a request, new alerts should appear here.")
                             .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
+                    .padding(.horizontal, 28)
                 } else {
                     List {
                         ForEach(notifications) { notification in
