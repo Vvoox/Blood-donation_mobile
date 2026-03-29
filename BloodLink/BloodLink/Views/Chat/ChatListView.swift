@@ -5,6 +5,7 @@ struct ChatListView: View {
     @State private var chats: [Chat] = []
     @State private var isLoading = false
     @State private var selectedChat: Chat?
+    private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationView {
@@ -47,22 +48,32 @@ struct ChatListView: View {
             }
         }
         .task {
-            if authService.isLoggedIn { await loadChats() }
+            if authService.isLoggedIn { await loadChats(showLoader: true) }
         }
         .onChange(of: authService.isLoggedIn) { isLoggedIn in
-            if isLoggedIn { Task { await loadChats() } }
+            if isLoggedIn { Task { await loadChats(showLoader: true) } }
+        }
+        .onReceive(refreshTimer) { _ in
+            guard authService.isLoggedIn else { return }
+            Task { await loadChats(showLoader: false) }
         }
     }
 
-    func loadChats() async {
+    func loadChats(showLoader: Bool) async {
         guard let token = authService.accessToken else { return }
-        isLoading = true
+        if showLoader {
+            isLoading = true
+        }
         do {
             chats = try await APIService.shared.fetchChats(token: token)
         } catch {
-            chats = []
+            if showLoader {
+                chats = []
+            }
         }
-        isLoading = false
+        if showLoader {
+            isLoading = false
+        }
     }
 }
 

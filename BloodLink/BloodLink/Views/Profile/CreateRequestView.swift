@@ -105,7 +105,7 @@ struct CreateRequestView: View {
             )
             dismiss()
         } catch {
-            errorMessage = "Failed to create request. Please try again."
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
         isSubmitting = false
     }

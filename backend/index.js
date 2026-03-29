@@ -12,6 +12,10 @@ const app = express();
 const PORT = process.env.PORT || 8082;
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL || 'http://keycloak:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'blood-donation';
+const KEYCLOAK_ADMIN_REALM = process.env.KEYCLOAK_ADMIN_REALM || 'master';
+const KEYCLOAK_ADMIN_CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
+const KEYCLOAK_ADMIN_USERNAME = process.env.KEYCLOAK_ADMIN_USERNAME || '';
+const KEYCLOAK_ADMIN_PASSWORD = process.env.KEYCLOAK_ADMIN_PASSWORD || '';
 
 // ─── Database ────────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -47,6 +51,39 @@ function getSigningKey(header, callback) {
     const signingKey = key.getPublicKey ? key.getPublicKey() : key.rsaPublicKey;
     callback(null, signingKey);
   });
+}
+
+async function getKeycloakAdminToken() {
+  if (!KEYCLOAK_ADMIN_USERNAME || !KEYCLOAK_ADMIN_PASSWORD) {
+    const error = new Error('Keycloak admin credentials are not configured');
+    error.status = 500;
+    throw error;
+  }
+
+  const tokenURL = `${KEYCLOAK_URL}/realms/${KEYCLOAK_ADMIN_REALM}/protocol/openid-connect/token`;
+  const body = new URLSearchParams({
+    grant_type: 'password',
+    client_id: KEYCLOAK_ADMIN_CLIENT_ID,
+    username: KEYCLOAK_ADMIN_USERNAME,
+    password: KEYCLOAK_ADMIN_PASSWORD,
+  });
+
+  const response = await fetch(tokenURL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    const error = new Error(data.error_description || data.error || 'Unable to authenticate with Keycloak admin');
+    error.status = response.status || 500;
+    throw error;
+  }
+
+  return data.access_token;
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
@@ -108,10 +145,91 @@ app.get('/health/db', async (req, res) => {
   }
 });
 
+// Register a new user in Keycloak
+app.post('/auth/register', async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      city,
+      bloodType,
+      country,
+      phoneNumber,
+    } = req.body;
+
+    if (!email || !password || !firstName || !lastName || !city) {
+      return res.status(400).json({
+        error: 'email, password, firstName, lastName, and city are required',
+      });
+    }
+
+    const adminToken = await getKeycloakAdminToken();
+    const createURL = `${KEYCLOAK_URL}/admin/realms/${KEYCLOAK_REALM}/users`;
+
+    const response = await fetch(createURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        username: email,
+        email,
+        firstName,
+        lastName,
+        enabled: true,
+        emailVerified: true,
+        credentials: [
+          {
+            type: 'password',
+            value: password,
+            temporary: false,
+          },
+        ],
+        attributes: {
+          city: [city],
+          country: [country || 'Morocco'],
+          bloodType: [bloodType || ''],
+          phoneNumber: [phoneNumber || ''],
+        },
+      }),
+    });
+
+    if (response.status === 409) {
+      return res.status(409).json({ error: 'A user with this email already exists' });
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({
+        error: 'Failed to create user in Keycloak',
+        details: text || response.statusText,
+      });
+    }
+
+    res.status(201).json({
+      status: 'created',
+      email,
+      firstName,
+      lastName,
+      city,
+      bloodType: bloodType || '',
+    });
+  } catch (err) {
+    console.error('POST /auth/register error:', err);
+    res.status(err.status || 500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
 // Get all requests, with optional search filters
 app.get('/requests', async (req, res) => {
   try {
     const { city, status, bloodType, creatorId, q } = req.query;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+    const offset = (page - 1) * limit;
     const where = [];
     const values = [];
 
@@ -144,14 +262,22 @@ app.get('/requests', async (req, res) => {
       )`);
     }
 
+    values.push(limit);
+    values.push(offset);
+
     const query = `
       SELECT *
       FROM blood_requests
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY created_at DESC
+      LIMIT $${values.length - 1}
+      OFFSET $${values.length}
     `;
 
     const result = await pool.query(query, values);
+    res.set('X-Page', String(page));
+    res.set('X-Limit', String(limit));
+    res.set('X-Has-More', String(result.rows.length === limit));
     res.json(result.rows.map(normalizeRequestRow));
   } catch (err) {
     console.error('GET /requests error:', err);
@@ -163,10 +289,19 @@ app.get('/requests', async (req, res) => {
 app.get('/requests/city/:city', async (req, res) => {
   try {
     const { city } = req.params;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+    const offset = (page - 1) * limit;
     const result = await pool.query(
-      `SELECT * FROM blood_requests WHERE LOWER(city) = LOWER($1) ORDER BY created_at DESC`,
-      [city]
+      `SELECT * FROM blood_requests
+       WHERE LOWER(city) = LOWER($1)
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [city, limit, offset]
     );
+    res.set('X-Page', String(page));
+    res.set('X-Limit', String(limit));
+    res.set('X-Has-More', String(result.rows.length === limit));
     res.json(result.rows.map(normalizeRequestRow));
   } catch (err) {
     console.error('GET /requests/city/:city error:', err);

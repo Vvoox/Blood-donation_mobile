@@ -3,19 +3,49 @@ import Foundation
 class APIService {
     static let shared = APIService()
     private let baseURL = "http://85.31.233.69:8082"
+    private let defaultPageSize = 10
 
     private struct ChatDetailResponse: Decodable {
         let chat: Chat
         let messages: [Message]
     }
 
-    func fetchRequests(city: String? = nil, token: String? = nil) async throws -> [BloodRequest] {
+    struct APIError: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    struct RegisterPayload {
+        let firstName: String
+        let lastName: String
+        let email: String
+        let password: String
+        let city: String
+        let bloodType: String
+        let country: String
+        let phoneNumber: String
+    }
+
+    private func validateResponse(data: Data, response: URLResponse) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        guard (200...299).contains(http.statusCode) else {
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let message =
+                (json?["error"] as? String)
+                ?? (json?["details"] as? String)
+                ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
+            throw APIError(message: "HTTP \(http.statusCode): \(message)")
+        }
+    }
+
+    func fetchRequests(city: String? = nil, page: Int = 1, limit: Int? = nil, token: String? = nil) async throws -> [BloodRequest] {
+        let pageSize = limit ?? defaultPageSize
         let urlStr: String
         if let city = city, !city.isEmpty {
             let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? city
-            urlStr = "\(baseURL)/requests/city/\(encodedCity)"
+            urlStr = "\(baseURL)/requests/city/\(encodedCity)?page=\(page)&limit=\(pageSize)"
         } else {
-            urlStr = "\(baseURL)/requests"
+            urlStr = "\(baseURL)/requests?page=\(page)&limit=\(pageSize)"
         }
         guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
 
@@ -24,7 +54,8 @@ class APIService {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
         return try JSONDecoder().decode([BloodRequest].self, from: data)
     }
 
@@ -40,13 +71,15 @@ class APIService {
         let body: [String: Any] = [
             "bloodTypes": bloodTypes,
             "city": city,
+            "country": "Morocco",
             "peopleNeeded": donorsNeeded,
             "deadline": deadline,
             "notes": notes
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
         return try JSONDecoder().decode(BloodRequest.self, from: data)
     }
 
@@ -57,7 +90,8 @@ class APIService {
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        _ = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
     }
 
     func fetchChats(token: String) async throws -> [Chat] {
@@ -66,7 +100,8 @@ class APIService {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
         return try JSONDecoder().decode([Chat].self, from: data)
     }
 
@@ -76,7 +111,8 @@ class APIService {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
         return try JSONDecoder().decode(ChatDetailResponse.self, from: data).messages
     }
 
@@ -86,7 +122,8 @@ class APIService {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
         return try JSONDecoder().decode([AppNotification].self, from: data)
     }
 
@@ -101,7 +138,31 @@ class APIService {
         let body = ["text": content]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
         return try JSONDecoder().decode(Message.self, from: data)
+    }
+
+    func registerUser(_ payload: RegisterPayload) async throws {
+        guard let url = URL(string: "\(baseURL)/auth/register") else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "firstName": payload.firstName,
+            "lastName": payload.lastName,
+            "email": payload.email,
+            "password": payload.password,
+            "city": payload.city,
+            "bloodType": payload.bloodType,
+            "country": payload.country,
+            "phoneNumber": payload.phoneNumber,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validateResponse(data: data, response: response)
     }
 }

@@ -9,6 +9,7 @@ struct ChatView: View {
     @State private var newMessage = ""
     @State private var isSending = false
     @State private var isLoading = false
+    private let refreshTimer = Timer.publish(every: 2.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         let otherUserName = chat.donorId == authService.currentUser?.id ? chat.requesterName : chat.donorName
@@ -68,18 +69,28 @@ struct ChatView: View {
                 }
             }
         }
-        .task { await loadMessages() }
+        .task { await loadMessages(showLoader: true) }
+        .onReceive(refreshTimer) { _ in
+            guard authService.isLoggedIn else { return }
+            Task { await loadMessages(showLoader: false) }
+        }
     }
 
-    func loadMessages() async {
+    func loadMessages(showLoader: Bool) async {
         guard let token = authService.accessToken else { return }
-        isLoading = true
+        if showLoader {
+            isLoading = true
+        }
         do {
             messages = try await APIService.shared.fetchMessages(chatId: chat.id, token: token)
         } catch {
-            messages = []
+            if showLoader {
+                messages = []
+            }
         }
-        isLoading = false
+        if showLoader {
+            isLoading = false
+        }
     }
 
     func sendMessage() async {
@@ -90,6 +101,7 @@ struct ChatView: View {
         do {
             let sent = try await APIService.shared.sendMessage(chatId: chat.id, content: content, token: token)
             messages.append(sent)
+            await loadMessages(showLoader: false)
         } catch {
             newMessage = content
         }

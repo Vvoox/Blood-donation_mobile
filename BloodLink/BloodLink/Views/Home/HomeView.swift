@@ -5,9 +5,13 @@ struct HomeView: View {
     @State private var requests: [BloodRequest] = []
     @State private var selectedCity = ""
     @State private var isLoading = false
+    @State private var isLoadingMore = false
+    @State private var currentPage = 1
+    @State private var hasMoreRequests = true
     @State private var selectedRequest: BloodRequest?
     @State private var showLoginSheet = false
     @State private var showCreateRequest = false
+    private let pageSize = 10
 
     let cities = ["All", "Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
 
@@ -24,7 +28,7 @@ struct HomeView: View {
                                 isSelected: selectedCity == city || (city == "All" && selectedCity.isEmpty)
                             ) {
                                 selectedCity = city == "All" ? "" : city
-                                Task { await loadRequests() }
+                                Task { await loadRequests(reset: true) }
                             }
                         }
                     }
@@ -57,6 +61,9 @@ struct HomeView: View {
                         RequestCard(request: request)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowSeparator(.hidden)
+                            .onAppear {
+                                Task { await loadMoreIfNeeded(currentRequest: request) }
+                            }
                             .onTapGesture {
                                 if authService.isLoggedIn {
                                     selectedRequest = request
@@ -65,6 +72,12 @@ struct HomeView: View {
                                 }
                             }
                     }
+                    .overlay(alignment: .bottom) {
+                        if isLoadingMore {
+                            ProgressView()
+                                .padding(.vertical, 12)
+                        }
+                    }
                     .listStyle(.plain)
                 }
             }
@@ -72,7 +85,7 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { Task { await loadRequests() } } label: {
+                    Button { Task { await loadRequests(reset: true) } } label: {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
@@ -100,27 +113,57 @@ struct HomeView: View {
             .onChange(of: authService.currentUser?.city ?? "") { city in
                 guard !city.isEmpty else { return }
                 selectedCity = city
-                Task { await loadRequests() }
+                Task { await loadRequests(reset: true) }
             }
         }
         .task {
             if let city = authService.currentUser?.city, !city.isEmpty {
                 selectedCity = city
             }
-            await loadRequests()
+            await loadRequests(reset: true)
         }
     }
 
-    func loadRequests() async {
-        isLoading = true
+    func loadRequests(reset: Bool) async {
+        if reset {
+            isLoading = true
+            currentPage = 1
+            hasMoreRequests = true
+        } else {
+            guard !isLoadingMore, hasMoreRequests else { return }
+            isLoadingMore = true
+        }
+
         do {
-            requests = try await APIService.shared.fetchRequests(
-                city: selectedCity.isEmpty ? nil : selectedCity
+            let fetched = try await APIService.shared.fetchRequests(
+                city: selectedCity.isEmpty ? nil : selectedCity,
+                page: currentPage,
+                limit: pageSize
             )
+            if reset {
+                requests = fetched
+            } else {
+                requests.append(contentsOf: fetched.filter { candidate in
+                    !requests.contains(where: { $0.id == candidate.id })
+                })
+            }
+            hasMoreRequests = fetched.count == pageSize
+            if hasMoreRequests {
+                currentPage += 1
+            }
         } catch {
-            requests = []
+            if reset {
+                requests = []
+            }
+            hasMoreRequests = false
         }
         isLoading = false
+        isLoadingMore = false
+    }
+
+    func loadMoreIfNeeded(currentRequest: BloodRequest) async {
+        guard let last = requests.last, last.id == currentRequest.id else { return }
+        await loadRequests(reset: false)
     }
 
     private var headerCard: some View {
@@ -158,7 +201,7 @@ struct HomeView: View {
                 }
 
                 Button {
-                    Task { await loadRequests() }
+                    Task { await loadRequests(reset: true) }
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                         .font(.subheadline)
