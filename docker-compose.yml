@@ -26,4 +26,4 @@ networks:
     driver: bridge
   komptelio-net:
     external: true
-    name: komptelio_default
+    name: shared_net
