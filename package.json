@@ -1,9 +1,9 @@
 {
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "start": "NODE_OPTIONS=--openssl-legacy-provider expo start",
+    "android": "NODE_OPTIONS=--openssl-legacy-provider expo start --android",
+    "ios": "NODE_OPTIONS=--openssl-legacy-provider expo start --ios",
     "web": "expo start --web",
     "test": "jest --watchAll"
   },
