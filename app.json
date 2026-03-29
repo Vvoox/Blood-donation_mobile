@@ -35,9 +35,15 @@
     "plugins": [
       "expo-font"
     ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/YOUR_PROJECT_ID"
+    },
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "YOUR_PROJECT_ID"
       }
     }
   }
