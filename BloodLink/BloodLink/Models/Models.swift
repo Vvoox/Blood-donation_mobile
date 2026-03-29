@@ -92,7 +92,7 @@ struct Message: Codable, Identifiable {
     }
 }
 
-struct AppNotification: Codable, Identifiable {
+struct AppNotification: Codable, Identifiable, Equatable {
     var id: String
     var type: NotificationType
     var message: String
