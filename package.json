@@ -1,9 +1,9 @@
 {
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "start": "NODE_OPTIONS=--openssl-legacy-provider expo start",
-    "android": "NODE_OPTIONS=--openssl-legacy-provider expo start --android",
-    "ios": "NODE_OPTIONS=--openssl-legacy-provider expo start --ios",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest --watchAll"
   },
@@ -38,6 +38,7 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.3.12",
+    "@types/react-native": "~0.73.0",
     "@types/react-redux": "^7.1.33",
     "jest-expo": "~54.0.0",
     "typescript": "~5.3.3"
