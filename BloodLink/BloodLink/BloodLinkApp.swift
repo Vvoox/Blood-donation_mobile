@@ -8,6 +8,7 @@ struct BloodLinkApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(authService)
+                .preferredColorScheme(.light)
         }
     }
 }
