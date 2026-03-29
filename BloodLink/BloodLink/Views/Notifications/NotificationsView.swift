@@ -2,13 +2,20 @@ import SwiftUI
 
 struct NotificationsView: View {
     @EnvironmentObject var authService: AuthService
+    @ObservedObject private var wsService = WebSocketService.shared
+
     @State private var notifications: [AppNotification] = []
     @State private var isLoading = false
 
     var body: some View {
         NavigationView {
             Group {
-                if isLoading {
+                if !authService.isLoggedIn {
+                    SignInPromptView(
+                        icon: "bell.badge",
+                        message: "Sign in to receive notifications"
+                    )
+                } else if isLoading {
                     ProgressView()
                 } else if notifications.isEmpty {
                     VStack(spacing: 12) {
@@ -19,9 +26,11 @@ struct NotificationsView: View {
                             .foregroundColor(.secondary)
                     }
                 } else {
-                    List(notifications) { notification in
-                        NotificationRow(notification: notification)
-                            .listRowSeparator(.hidden)
+                    List {
+                        ForEach(notifications) { notification in
+                            NotificationRow(notification: notification)
+                                .listRowSeparator(.hidden)
+                        }
                     }
                     .listStyle(.plain)
                 }
@@ -29,7 +38,18 @@ struct NotificationsView: View {
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.large)
         }
-        .task { await loadNotifications() }
+        .task {
+            if authService.isLoggedIn {
+                await loadNotifications()
+            }
+        }
+        .onChange(of: authService.isLoggedIn) { isLoggedIn in
+            if isLoggedIn { Task { await loadNotifications() } }
+        }
+        .onChange(of: wsService.newNotification) { notification in
+            guard let notification = notification else { return }
+            notifications.insert(notification, at: 0)
+        }
     }
 
     func loadNotifications() async {
@@ -51,7 +71,9 @@ struct NotificationRow: View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(notification.isRead ? Color(.systemGray5) : Color(red: 0.776, green: 0.157, blue: 0.157).opacity(0.15))
+                    .fill(notification.isRead
+                        ? Color(.systemGray5)
+                        : Color(red: 0.776, green: 0.157, blue: 0.157).opacity(0.15))
                     .frame(width: 44, height: 44)
                 Image(systemName: iconName(for: notification.type))
                     .foregroundColor(notification.isRead ? .gray : Color(red: 0.776, green: 0.157, blue: 0.157))
@@ -87,12 +109,12 @@ struct NotificationRow: View {
     }
 
     func formatDate(_ dateStr: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: dateStr) {
-            let display = RelativeDateTimeFormatter()
-            display.unitsStyle = .abbreviated
-            return display.localizedString(for: date, relativeTo: Date())
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: dateStr) {
+            let rel = RelativeDateTimeFormatter()
+            rel.unitsStyle = .abbreviated
+            return rel.localizedString(for: date, relativeTo: Date())
         }
         return String(dateStr.prefix(10))
     }

@@ -9,7 +9,12 @@ struct ChatListView: View {
     var body: some View {
         NavigationView {
             Group {
-                if isLoading {
+                if !authService.isLoggedIn {
+                    SignInPromptView(
+                        icon: "bubble.left.and.bubble.right",
+                        message: "Sign in to view your messages"
+                    )
+                } else if isLoading {
                     ProgressView()
                 } else if chats.isEmpty {
                     VStack(spacing: 12) {
@@ -41,7 +46,12 @@ struct ChatListView: View {
                     .environmentObject(authService)
             }
         }
-        .task { await loadChats() }
+        .task {
+            if authService.isLoggedIn { await loadChats() }
+        }
+        .onChange(of: authService.isLoggedIn) { isLoggedIn in
+            if isLoggedIn { Task { await loadChats() } }
+        }
     }
 
     func loadChats() async {
@@ -103,9 +113,9 @@ struct ChatRow: View {
     }
 
     func formatDate(_ dateStr: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: dateStr) {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: dateStr) {
             let cal = Calendar.current
             if cal.isDateInToday(date) {
                 let display = DateFormatter()

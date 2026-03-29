@@ -5,6 +5,14 @@ struct ProfileView: View {
     @State private var showCreateRequest = false
 
     var body: some View {
+        if authService.isLoggedIn {
+            loggedInView
+        } else {
+            LoginView()
+        }
+    }
+
+    var loggedInView: some View {
         NavigationView {
             List {
                 Section {
@@ -26,10 +34,18 @@ struct ProfileView: View {
                 }
 
                 Section("My Info") {
-                    ProfileRow(icon: "drop.fill", label: "Blood Type",
-                               value: authService.currentUser?.bloodType.isEmpty == false ? authService.currentUser!.bloodType : "Not set")
-                    ProfileRow(icon: "location.fill", label: "City",
-                               value: authService.currentUser?.city.isEmpty == false ? authService.currentUser!.city : "Not set")
+                    ProfileRow(
+                        icon: "drop.fill",
+                        label: "Blood Type",
+                        value: authService.currentUser?.bloodType.isEmpty == false
+                            ? authService.currentUser!.bloodType : "Not set"
+                    )
+                    ProfileRow(
+                        icon: "location.fill",
+                        label: "City",
+                        value: authService.currentUser?.city.isEmpty == false
+                            ? authService.currentUser!.city : "Not set"
+                    )
                 }
 
                 Section {

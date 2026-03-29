@@ -6,20 +6,8 @@ struct BloodLinkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(authService)
-        }
-    }
-}
-
-struct RootView: View {
-    @EnvironmentObject var authService: AuthService
-
-    var body: some View {
-        if authService.isLoggedIn {
             MainTabView()
-        } else {
-            LoginView()
+                .environmentObject(authService)
         }
     }
 }

@@ -26,7 +26,7 @@ class AuthService: ObservableObject {
         let body = "grant_type=password&client_id=\(clientId)&username=\(email)&password=\(password)"
         request.httpBody = body.data(using: .utf8)
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             DispatchQueue.main.async {
                 self?.isLoading = false
                 if let error = error {
@@ -67,11 +67,13 @@ class AuthService: ObservableObject {
                 )
                 self?.currentUser = user
                 self?.isLoggedIn = true
+                WebSocketService.shared.connect(token: token)
             }
         }.resume()
     }
 
     func logout() {
+        WebSocketService.shared.disconnect()
         isLoggedIn = false
         currentUser = nil
         accessToken = nil

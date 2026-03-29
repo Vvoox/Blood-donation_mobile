@@ -10,7 +10,7 @@ struct User: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id = "sub"
         case email
-        case name = "name"
+        case name
         case city
         case bloodType = "blood_type"
     }
@@ -50,8 +50,19 @@ struct Chat: Codable, Identifiable {
     var donorId: String
     var requesterId: String
     var otherUserName: String
-    var lastMessage: String?
+    var lastMessage: ChatPreview?
+    var unreadCount: Int
     var updatedAt: String
+
+    struct ChatPreview: Codable {
+        var content: String
+        var createdAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case content
+            case createdAt = "created_at"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -60,6 +71,7 @@ struct Chat: Codable, Identifiable {
         case requesterId = "requester_id"
         case otherUserName = "other_user_name"
         case lastMessage = "last_message"
+        case unreadCount = "unread_count"
         case updatedAt = "updated_at"
     }
 }
@@ -80,13 +92,24 @@ struct Message: Codable, Identifiable {
     }
 }
 
-struct Notification: Identifiable {
+struct AppNotification: Codable, Identifiable {
     var id: String
-    var request: BloodRequest
     var type: NotificationType
+    var message: String
+    var isRead: Bool
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case message
+        case isRead = "is_read"
+        case createdAt = "created_at"
+    }
 }
 
-enum NotificationType {
-    case newRequest
-    case accepted
+enum NotificationType: String, Codable {
+    case newRequest = "new_request"
+    case requestAccepted = "request_accepted"
+    case message = "message"
 }

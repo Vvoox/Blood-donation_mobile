@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var selectedCity = ""
     @State private var isLoading = false
     @State private var selectedRequest: BloodRequest?
+    @State private var showLoginSheet = false
 
     let cities = ["All", "Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
 
@@ -15,7 +16,10 @@ struct HomeView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(cities, id: \.self) { city in
-                            CityChip(title: city, isSelected: selectedCity == city || (city == "All" && selectedCity.isEmpty)) {
+                            CityChip(
+                                title: city,
+                                isSelected: selectedCity == city || (city == "All" && selectedCity.isEmpty)
+                            ) {
                                 selectedCity = city == "All" ? "" : city
                                 Task { await loadRequests() }
                             }
@@ -45,7 +49,13 @@ struct HomeView: View {
                         RequestCard(request: request)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowSeparator(.hidden)
-                            .onTapGesture { selectedRequest = request }
+                            .onTapGesture {
+                                if authService.isLoggedIn {
+                                    selectedRequest = request
+                                } else {
+                                    showLoginSheet = true
+                                }
+                            }
                     }
                     .listStyle(.plain)
                 }
@@ -63,6 +73,13 @@ struct HomeView: View {
                 RequestDetailView(request: request)
                     .environmentObject(authService)
             }
+            .sheet(isPresented: $showLoginSheet) {
+                LoginView()
+                    .environmentObject(authService)
+            }
+            .onChange(of: authService.isLoggedIn) { isLoggedIn in
+                if isLoggedIn { showLoginSheet = false }
+            }
         }
         .task { await loadRequests() }
     }
@@ -70,7 +87,9 @@ struct HomeView: View {
     func loadRequests() async {
         isLoading = true
         do {
-            requests = try await APIService.shared.fetchRequests(city: selectedCity.isEmpty ? nil : selectedCity)
+            requests = try await APIService.shared.fetchRequests(
+                city: selectedCity.isEmpty ? nil : selectedCity
+            )
         } catch {
             requests = []
         }
