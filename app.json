@@ -8,7 +8,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "bloodlink",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
