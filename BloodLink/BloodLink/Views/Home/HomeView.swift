@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     @State private var requests: [BloodRequest] = []
     @State private var selectedCity = ""
     @State private var isLoading = false
@@ -13,7 +14,7 @@ struct HomeView: View {
     @State private var showCreateRequest = false
     private let pageSize = 10
 
-    let cities = ["All", "Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
+    let cities = ["Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
 
     var body: some View {
         NavigationView {
@@ -22,12 +23,12 @@ struct HomeView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(cities, id: \.self) { city in
+                        ForEach([localization.text("home.all_cities")] + cities, id: \.self) { city in
                             CityChip(
                                 title: city,
-                                isSelected: selectedCity == city || (city == "All" && selectedCity.isEmpty)
+                                isSelected: selectedCity == city || (city == localization.text("home.all_cities") && selectedCity.isEmpty)
                             ) {
-                                selectedCity = city == "All" ? "" : city
+                                selectedCity = city == localization.text("home.all_cities") ? "" : city
                                 Task { await loadRequests(reset: true) }
                             }
                         }
@@ -48,9 +49,11 @@ struct HomeView: View {
                         Image(systemName: "drop.circle")
                             .font(.system(size: 48))
                             .foregroundColor(.gray)
-                        Text("No active requests")
+                        Text(localization.text("home.empty_title"))
                             .font(.headline)
-                        Text(selectedCity.isEmpty ? "Try another city or refresh the feed." : "There are no active requests in \(selectedCity) right now.")
+                        Text(selectedCity.isEmpty
+                            ? localization.text("home.empty_text_all")
+                            : localization.text("home.empty_text_city", selectedCity))
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                     }
@@ -81,7 +84,7 @@ struct HomeView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Blood Requests")
+            .navigationTitle(localization.text("home.title"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -90,17 +93,22 @@ struct HomeView: View {
                     }
                 }
             }
-            .sheet(item: $selectedRequest) { request in
+            .sheet(item: $selectedRequest, onDismiss: {
+                Task { await loadRequests(reset: true) }
+            }) { request in
                 RequestDetailView(request: request)
                     .environmentObject(authService)
+                    .environmentObject(localization)
             }
             .sheet(isPresented: $showCreateRequest) {
                 CreateRequestView()
                     .environmentObject(authService)
+                    .environmentObject(localization)
             }
             .sheet(isPresented: $showLoginSheet) {
                 LoginView()
                     .environmentObject(authService)
+                    .environmentObject(localization)
             }
             .onChange(of: authService.isLoggedIn) { isLoggedIn in
                 if isLoggedIn {
@@ -138,7 +146,8 @@ struct HomeView: View {
             let fetched = try await APIService.shared.fetchRequests(
                 city: selectedCity.isEmpty ? nil : selectedCity,
                 page: currentPage,
-                limit: pageSize
+                limit: pageSize,
+                token: authService.accessToken
             )
             if reset {
                 requests = fetched
@@ -170,7 +179,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(authService.isLoggedIn ? "Requests near you" : "Find blood requests fast")
+                    Text(authService.isLoggedIn ? localization.text("home.requests_near_you") : localization.text("home.find_fast"))
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -190,7 +199,7 @@ struct HomeView: View {
 
             HStack(spacing: 10) {
                 actionButton(
-                    title: authService.isLoggedIn ? "Create Request" : "Sign In",
+                    title: authService.isLoggedIn ? localization.text("home.create_request") : localization.text("prompt.sign_in"),
                     systemImage: authService.isLoggedIn ? "plus.circle.fill" : "person.crop.circle.fill"
                 ) {
                     if authService.isLoggedIn {
@@ -203,7 +212,7 @@ struct HomeView: View {
                 Button {
                     Task { await loadRequests(reset: true) }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label(localization.text("common.refresh"), systemImage: "arrow.clockwise")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
@@ -233,14 +242,14 @@ struct HomeView: View {
 
     private var headerSubtitle: String {
         if authService.isLoggedIn, let city = authService.currentUser?.city, !city.isEmpty {
-            return "Showing active donation requests in \(city). You can create a request or accept one in a few taps."
+            return localization.text("home.subtitle.logged_in", city)
         }
 
         if selectedCity.isEmpty {
-            return "Browse urgent donation requests by city. Sign in before creating a request or responding to one."
+            return localization.text("home.subtitle.all")
         }
 
-        return "Browse active donation requests in \(selectedCity). Sign in before creating a request or responding to one."
+        return localization.text("home.subtitle.city", selectedCity)
     }
 
     private func actionButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
@@ -277,13 +286,14 @@ struct CityChip: View {
 
 struct RequestCard: View {
     let request: BloodRequest
+    @EnvironmentObject var localization: LocalizationService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 HStack(spacing: 4) {
                     if request.bloodTypes.isEmpty {
-                        Text("Any Type")
+                        Text(localization.text("home.any_type"))
                             .font(.caption).bold()
                             .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(Color(red: 0.776, green: 0.157, blue: 0.157))
@@ -304,6 +314,16 @@ struct RequestCard: View {
                 Label(request.city, systemImage: "location.fill")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                if request.acceptedByMe {
+                    Text(localization.text("home.accepted_badge"))
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.16))
+                        .foregroundColor(.green)
+                        .cornerRadius(8)
+                }
             }
 
             Text(request.requesterName)
@@ -317,11 +337,11 @@ struct RequestCard: View {
             }
 
             HStack {
-                Label("\(request.donorsAccepted)/\(request.donorsNeeded) donors", systemImage: "person.2.fill")
+                Label(localization.text("home.donors_count", request.donorsAccepted, request.donorsNeeded), systemImage: "person.2.fill")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
-                Label("Deadline: \(formatDate(request.deadline))", systemImage: "calendar")
+                Label(localization.text("home.deadline", formatDate(request.deadline)), systemImage: "calendar")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

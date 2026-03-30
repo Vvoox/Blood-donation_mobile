@@ -2,11 +2,23 @@ import SwiftUI
 
 struct RequestDetailView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     let request: BloodRequest
     @State private var isAccepting = false
     @State private var accepted = false
     @State private var errorMessage: String?
     @Environment(\.dismiss) var dismiss
+
+    private var isOwnRequest: Bool {
+        let currentUser = authService.currentUser
+        let normalizedRequesterName = request.requesterName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedUserName = currentUser?.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let normalizedEmail = currentUser?.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+
+        return request.requesterId == currentUser?.id
+            || (!normalizedRequesterName.isEmpty && normalizedRequesterName == normalizedUserName)
+            || (!normalizedRequesterName.isEmpty && normalizedRequesterName == normalizedEmail)
+    }
 
     var body: some View {
         NavigationView {
@@ -14,7 +26,7 @@ struct RequestDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack {
                         if request.bloodTypes.isEmpty {
-                            Text("Any Blood Type")
+                            Text(localization.text("request_detail.any_type"))
                                 .font(.title3).bold()
                                 .padding(.horizontal, 14).padding(.vertical, 8)
                                 .background(Color(red: 0.776, green: 0.157, blue: 0.157))
@@ -33,10 +45,10 @@ struct RequestDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        InfoRow(icon: "person.fill", label: "Requester", value: request.requesterName)
-                        InfoRow(icon: "location.fill", label: "City", value: request.city)
-                        InfoRow(icon: "person.2.fill", label: "Donors needed", value: "\(request.donorsAccepted)/\(request.donorsNeeded)")
-                        InfoRow(icon: "calendar", label: "Deadline", value: String(request.deadline.prefix(10)))
+                        InfoRow(icon: "person.fill", label: localization.text("request_detail.requester"), value: request.requesterName)
+                        InfoRow(icon: "location.fill", label: localization.text("request_detail.city"), value: request.city)
+                        InfoRow(icon: "person.2.fill", label: localization.text("request_detail.donors_needed"), value: "\(request.donorsAccepted)/\(request.donorsNeeded)")
+                        InfoRow(icon: "calendar", label: localization.text("request_detail.deadline"), value: String(request.deadline.prefix(10)))
                     }
                     .padding()
                     .background(Color(.systemGray6))
@@ -44,7 +56,7 @@ struct RequestDetailView: View {
 
                     if let notes = request.notes, !notes.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Notes").font(.headline)
+                            Text(localization.text("request_detail.notes")).font(.headline)
                             Text(notes).foregroundColor(.secondary)
                         }
                     }
@@ -53,11 +65,32 @@ struct RequestDetailView: View {
                         Text(error).foregroundColor(.red).font(.caption)
                     }
 
-                    if accepted {
-                        Label("You accepted this request!", systemImage: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.headline)
-                    } else if authService.isLoggedIn && request.requesterId != authService.currentUser?.id {
+                    if accepted || request.acceptedByMe {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.green)
+                                .frame(height: 52)
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text(localization.text("request_detail.already_accepted"))
+                                    .fontWeight(.bold)
+                            }
+                            .foregroundColor(.white)
+                        }
+                    } else if authService.isLoggedIn && isOwnRequest {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color(.systemGray4))
+                                .frame(height: 52)
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.crop.circle.badge.checkmark")
+                                Text(localization.text("request_detail.my_request"))
+                                    .fontWeight(.bold)
+                            }
+                            .foregroundColor(.white)
+                        }
+                        .opacity(0.9)
+                    } else if authService.isLoggedIn {
                         Button {
                             Task { await acceptRequest() }
                         } label: {
@@ -68,7 +101,7 @@ struct RequestDetailView: View {
                                 if isAccepting {
                                     ProgressView().tint(.white)
                                 } else {
-                                    Text("Accept & Donate")
+                                    Text(localization.text("request_detail.accept"))
                                         .fontWeight(.bold).foregroundColor(.white)
                                 }
                             }
@@ -77,19 +110,22 @@ struct RequestDetailView: View {
                     } else if !authService.isLoggedIn {
                         SignInPromptView(
                             icon: "person.crop.circle.badge.exclamationmark",
-                            message: "Sign in to accept this request and open a chat with the requester."
+                            message: localization.text("request_detail.sign_in_message")
                         )
                     }
                 }
                 .padding()
             }
-            .navigationTitle("Request Details")
+            .navigationTitle(localization.text("request_detail.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") { dismiss() }
+                    Button(localization.text("common.close")) { dismiss() }
                 }
             }
+        }
+        .onAppear {
+            accepted = request.acceptedByMe
         }
     }
 
@@ -100,7 +136,7 @@ struct RequestDetailView: View {
             try await APIService.shared.acceptRequest(requestId: request.id, token: token)
             accepted = true
         } catch {
-            errorMessage = "Failed to accept. Please try again."
+            errorMessage = localization.text("request_detail.error_accept")
         }
         isAccepting = false
     }

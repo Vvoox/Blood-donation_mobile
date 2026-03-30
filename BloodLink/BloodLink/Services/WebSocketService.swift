@@ -4,10 +4,16 @@ class WebSocketService: ObservableObject {
     static let shared = WebSocketService()
 
     @Published var newNotification: AppNotification?
+    @Published var latestMessage: Message?
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var pingTimer: Timer?
     private let baseWS = "ws://85.31.233.69:8082"
+
+    private struct SocketEnvelope<T: Decodable>: Decodable {
+        let type: String
+        let payload: T
+    }
 
     func connect(token: String) {
         disconnect()
@@ -56,11 +62,21 @@ class WebSocketService: ObservableObject {
     }
 
     private func handle(text: String) {
-        guard let data = text.data(using: .utf8),
-              let notification = try? JSONDecoder().decode(AppNotification.self, from: data)
-        else { return }
-        DispatchQueue.main.async {
-            self.newNotification = notification
+        guard let data = text.data(using: .utf8) else { return }
+
+        if let envelope = try? JSONDecoder().decode(SocketEnvelope<AppNotification>.self, from: data),
+           envelope.type == "notification.created" {
+            DispatchQueue.main.async {
+                self.newNotification = envelope.payload
+            }
+            return
+        }
+
+        if let envelope = try? JSONDecoder().decode(SocketEnvelope<Message>.self, from: data),
+           envelope.type == "chat.message" {
+            DispatchQueue.main.async {
+                self.latestMessage = envelope.payload
+            }
         }
     }
 }

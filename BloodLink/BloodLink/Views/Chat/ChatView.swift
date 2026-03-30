@@ -2,7 +2,9 @@ import SwiftUI
 
 struct ChatView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var wsService = WebSocketService.shared
     let chat: Chat
 
     @State private var messages: [Message] = []
@@ -39,7 +41,7 @@ struct ChatView: View {
                 Divider()
 
                 HStack(spacing: 12) {
-                    TextField("Message...", text: $newMessage, axis: .vertical)
+                    TextField(localization.text("chat.placeholder"), text: $newMessage, axis: .vertical)
                         .lineLimit(1...4)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -65,7 +67,7 @@ struct ChatView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") { dismiss() }
+                    Button(localization.text("common.close")) { dismiss() }
                 }
             }
         }
@@ -73,6 +75,12 @@ struct ChatView: View {
         .onReceive(refreshTimer) { _ in
             guard authService.isLoggedIn else { return }
             Task { await loadMessages(showLoader: false) }
+        }
+        .onChange(of: wsService.latestMessage) { message in
+            guard let message, message.chatId == chat.id else { return }
+            if !messages.contains(where: { $0.id == message.id }) {
+                messages.append(message)
+            }
         }
     }
 

@@ -29,6 +29,7 @@ struct BloodRequest: Codable, Identifiable {
     var notes: String?
     var status: String
     var createdAt: String
+    var acceptedByMe: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -43,6 +44,7 @@ struct BloodRequest: Codable, Identifiable {
         case notes
         case status
         case createdAt = "created_at"
+        case acceptedByMe = "accepted_by_me"
     }
 }
 
@@ -102,6 +104,8 @@ struct AppNotification: Codable, Identifiable, Equatable {
     var message: String
     var isRead: Bool
     var createdAt: String
+    var relatedRequestId: String?
+    var relatedChatId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -109,6 +113,8 @@ struct AppNotification: Codable, Identifiable, Equatable {
         case message
         case isRead = "is_read"
         case createdAt = "created_at"
+        case relatedRequestId = "related_request_id"
+        case relatedChatId = "related_chat_id"
     }
 }
 

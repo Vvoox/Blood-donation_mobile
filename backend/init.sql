@@ -51,6 +51,18 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id VARCHAR(255) NOT NULL,
+  type VARCHAR(50) NOT NULL,
+  message TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  related_request_id UUID REFERENCES blood_requests(id) ON DELETE CASCADE,
+  related_chat_id UUID REFERENCES chats(id) ON DELETE CASCADE,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Seed demo requests
 INSERT INTO blood_requests (creator_id, creator_name, blood_types, city, country, people_needed, deadline, notes)
 VALUES

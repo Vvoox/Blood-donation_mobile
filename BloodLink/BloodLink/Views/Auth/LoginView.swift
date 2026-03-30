@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     @State private var email = ""
     @State private var password = ""
     @State private var showRegister = false
@@ -18,27 +19,34 @@ struct LoginView: View {
                     Image(systemName: "drop.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.white)
-                    Text("BloodLink")
+                    Text(localization.text("login.title"))
                         .font(.largeTitle).bold()
                         .foregroundColor(.white)
-                    Text("Connect. Donate. Save Lives.")
+                    Text(localization.text("login.subtitle"))
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .padding(.bottom, 48)
 
                 VStack(spacing: 16) {
-                    TextField("Email", text: $email)
+                    TextField(localization.text("login.email"), text: $email)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)
 
-                    SecureField("Password", text: $password)
+                    SecureField(localization.text("login.password"), text: $password)
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)
+
+                    Toggle(isOn: $authService.rememberMe) {
+                        Text(localization.text("login.remember_me"))
+                            .foregroundColor(.white)
+                            .fontWeight(.semibold)
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: .white))
 
                     if let error = authService.errorMessage {
                         Text(error)
@@ -56,7 +64,7 @@ struct LoginView: View {
                             if authService.isLoading {
                                 ProgressView().tint(Color(red: 0.776, green: 0.157, blue: 0.157))
                             } else {
-                                Text("Sign In")
+                                Text(localization.text("login.sign_in"))
                                     .fontWeight(.bold)
                                     .foregroundColor(Color(red: 0.776, green: 0.157, blue: 0.157))
                             }
@@ -68,7 +76,7 @@ struct LoginView: View {
                     Button {
                         showRegister = true
                     } label: {
-                        Text("Create a new account")
+                        Text(localization.text("login.create_account"))
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -83,7 +91,7 @@ struct LoginView: View {
 
                 Spacer()
 
-                Text("BloodLink — Save lives together")
+                Text(localization.text("login.footer"))
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.bottom, 24)
@@ -92,6 +100,7 @@ struct LoginView: View {
         .sheet(isPresented: $showRegister) {
             RegisterView()
                 .environmentObject(authService)
+                .environmentObject(localization)
         }
     }
 }

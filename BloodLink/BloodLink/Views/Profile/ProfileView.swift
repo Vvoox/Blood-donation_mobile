@@ -2,7 +2,23 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
+    @Environment(\.openURL) var openURL
     @State private var showCreateRequest = false
+    @State private var selectedRequest: BloodRequest?
+    @State private var requestTab = "mine"
+    @State private var settingsTab = "password"
+    @State private var myRequests: [BloodRequest] = []
+    @State private var acceptedRequests: [BloodRequest] = []
+    @State private var refusedRequests: [BloodRequest] = []
+    @State private var isLoadingRequests = false
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var settingsMessage: String?
+    @State private var settingsError: String?
+    @State private var isSavingPassword = false
+    @State private var isDeletingAccount = false
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         if authService.isLoggedIn {
@@ -15,10 +31,10 @@ struct ProfileView: View {
 
                     SignInPromptView(
                         icon: "person.crop.circle.badge.plus",
-                        message: "Sign in or register to create a blood request, receive city alerts, and chat with donors."
+                        message: localization.text("profile.sign_in_message")
                     )
                 }
-                .navigationTitle("Profile")
+                .navigationTitle(localization.text("profile.title"))
             }
         }
     }
@@ -48,17 +64,67 @@ struct ProfileView: View {
                     VStack(spacing: 12) {
                         ProfileRow(
                             icon: "drop.fill",
-                            label: "Blood Type",
+                            label: localization.text("profile.blood_type"),
                             value: authService.currentUser?.bloodType.isEmpty == false
-                                ? authService.currentUser!.bloodType : "Not set"
+                                ? authService.currentUser!.bloodType : localization.text("profile.not_set")
                         )
                         Divider()
                         ProfileRow(
                             icon: "location.fill",
-                            label: "City",
+                            label: localization.text("profile.city"),
                             value: authService.currentUser?.city.isEmpty == false
-                                ? authService.currentUser!.city : "Not set"
+                                ? authService.currentUser!.city : localization.text("profile.not_set")
                         )
+                        Divider()
+                        HStack {
+                            Image(systemName: "globe")
+                                .foregroundColor(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                .frame(width: 24)
+                            Text(localization.text("profile.language"))
+                            Spacer()
+                            Picker(localization.text("profile.language"), selection: $localization.language) {
+                                ForEach(LocalizationService.Language.allCases) { language in
+                                    Text(language.displayName).tag(language)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                    .padding(18)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(22)
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(localization.text("profile.section.requests"))
+                            .font(.headline)
+
+                        Picker("", selection: $requestTab) {
+                            Text(localization.text("profile.requests.mine")).tag("mine")
+                            Text(localization.text("profile.requests.accepted")).tag("accepted")
+                            Text(localization.text("profile.requests.refused")).tag("refused")
+                        }
+                        .pickerStyle(.segmented)
+
+                        if isLoadingRequests {
+                            ProgressView()
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 12)
+                        } else if activeRequests.isEmpty {
+                            Text(localization.text("profile.empty_requests"))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(activeRequests) { request in
+                                    Button {
+                                        selectedRequest = request
+                                    } label: {
+                                        RequestCard(request: request)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                     }
                     .padding(18)
                     .background(Color(.systemBackground))
@@ -69,10 +135,10 @@ struct ProfileView: View {
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Need blood urgently?")
+                                Text(localization.text("profile.need_blood_title"))
                                     .font(.headline)
                                     .foregroundColor(.white)
-                                Text("Create a request and notify nearby donors in your city.")
+                                Text(localization.text("profile.need_blood_text"))
                                     .font(.subheadline)
                                     .foregroundColor(.white.opacity(0.86))
                                     .multilineTextAlignment(.leading)
@@ -96,10 +162,97 @@ struct ProfileView: View {
                         .cornerRadius(22)
                     }
 
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(localization.text("profile.section.settings"))
+                            .font(.headline)
+
+                        Picker("", selection: $settingsTab) {
+                            Text(localization.text("profile.settings.password")).tag("password")
+                            Text(localization.text("profile.settings.delete")).tag("delete")
+                        }
+                        .pickerStyle(.segmented)
+
+                        if settingsTab == "password" {
+                            VStack(spacing: 12) {
+                                SecureField(localization.text("profile.password.current"), text: $currentPassword)
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+
+                                SecureField(localization.text("profile.password.new"), text: $newPassword)
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+
+                                Button {
+                                    Task { await updatePassword() }
+                                } label: {
+                                    if isSavingPassword {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 14)
+                                    } else {
+                                        Text(localization.text("profile.password.save"))
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 14)
+                                    }
+                                }
+                                .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                .cornerRadius(14)
+                                .disabled(isSavingPassword || currentPassword.isEmpty || newPassword.isEmpty)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(localization.text("profile.delete.warning"))
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                Button(role: .destructive) {
+                                    showDeleteConfirmation = true
+                                } label: {
+                                    Text(localization.text("profile.delete.button"))
+                                        .fontWeight(.bold)
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .disabled(isDeletingAccount)
+                            }
+                        }
+
+                        if let settingsMessage {
+                            Text(settingsMessage)
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+
+                        if let settingsError {
+                            Text(settingsError)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .padding(18)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(22)
+
+                    Button {
+                        if let url = URL(string: "mailto:support@bloodlink.com") {
+                            openURL(url)
+                        }
+                    } label: {
+                        Label(localization.text("profile.support"), systemImage: "lifepreserver")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(18)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(22)
+
                     Button(role: .destructive) {
                         authService.logout()
                     } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        Label(localization.text("profile.sign_out"), systemImage: "rectangle.portrait.and.arrow.right")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(18)
@@ -108,12 +261,99 @@ struct ProfileView: View {
                 }
                 .padding(16)
             }
-            .navigationTitle("Profile")
-            .sheet(isPresented: $showCreateRequest) {
+            .navigationTitle(localization.text("profile.title"))
+            .sheet(isPresented: $showCreateRequest, onDismiss: {
+                Task { await loadRequests() }
+            }) {
                 CreateRequestView()
                     .environmentObject(authService)
+                    .environmentObject(localization)
+            }
+            .sheet(item: $selectedRequest) { request in
+                RequestDetailView(request: request)
+                    .environmentObject(authService)
+                    .environmentObject(localization)
+            }
+            .task { await loadRequests() }
+            .onChange(of: requestTab) { _ in
+                settingsMessage = nil
+                settingsError = nil
+            }
+            .confirmationDialog(
+                localization.text("profile.delete.confirm"),
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(localization.text("profile.delete.button"), role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+            } message: {
+                Text(localization.text("profile.delete.message"))
             }
         }
+    }
+
+    private var activeRequests: [BloodRequest] {
+        switch requestTab {
+        case "accepted":
+            return acceptedRequests
+        case "refused":
+            return refusedRequests
+        default:
+            return myRequests
+        }
+    }
+
+    private func loadRequests() async {
+        guard let token = authService.accessToken else { return }
+        isLoadingRequests = true
+        do {
+            async let mine = APIService.shared.fetchMyRequests(token: token)
+            async let accepted = APIService.shared.fetchAcceptedRequests(token: token)
+            async let refused = APIService.shared.fetchRefusedRequests(token: token)
+            myRequests = try await mine
+            acceptedRequests = try await accepted
+            refusedRequests = try await refused
+        } catch {
+            myRequests = []
+            acceptedRequests = []
+            refusedRequests = []
+        }
+        isLoadingRequests = false
+    }
+
+    private func updatePassword() async {
+        guard let token = authService.accessToken else { return }
+        settingsMessage = nil
+        settingsError = nil
+        isSavingPassword = true
+        do {
+            try await APIService.shared.changePassword(
+                currentPassword: currentPassword,
+                newPassword: newPassword,
+                token: token
+            )
+            currentPassword = ""
+            newPassword = ""
+            settingsMessage = localization.text("profile.password.success")
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isSavingPassword = false
+    }
+
+    private func deleteAccount() async {
+        guard let token = authService.accessToken else { return }
+        settingsMessage = nil
+        settingsError = nil
+        isDeletingAccount = true
+        do {
+            try await APIService.shared.deleteAccount(token: token)
+            authService.logout()
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isDeletingAccount = false
     }
 }
 

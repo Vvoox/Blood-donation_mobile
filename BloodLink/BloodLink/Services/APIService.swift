@@ -1,14 +1,23 @@
 import Foundation
 
+protocol APIServiceAuthDelegate: AnyObject {
+    var currentAccessToken: String? { get }
+    func refreshAccessTokenIfNeeded() async -> String?
+    func handleAuthenticationFailure()
+}
+
 class APIService {
     static let shared = APIService()
     private let baseURL = "http://85.31.233.69:8082"
     private let defaultPageSize = 10
+    weak var authDelegate: APIServiceAuthDelegate?
 
     private struct ChatDetailResponse: Decodable {
         let chat: Chat
         let messages: [Message]
     }
+
+    private struct EmptyResponse: Decodable {}
 
     struct APIError: LocalizedError {
         let message: String
@@ -38,6 +47,36 @@ class APIService {
         }
     }
 
+    private func authorizedToken(fallback token: String?) -> String? {
+        authDelegate?.currentAccessToken ?? token
+    }
+
+    private func execute(_ request: URLRequest, allowRefresh: Bool = false) async throws -> (Data, URLResponse) {
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        if allowRefresh,
+           let http = response as? HTTPURLResponse,
+           http.statusCode == 401 {
+            guard let refreshedToken = await authDelegate?.refreshAccessTokenIfNeeded() else {
+                authDelegate?.handleAuthenticationFailure()
+                throw APIError(message: "HTTP 401: Unauthorized")
+            }
+
+            var retriedRequest = request
+            retriedRequest.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
+            let retryResult = try await URLSession.shared.data(for: retriedRequest)
+
+            if let retryHTTP = retryResult.1 as? HTTPURLResponse,
+               retryHTTP.statusCode == 401 {
+                authDelegate?.handleAuthenticationFailure()
+            }
+
+            return retryResult
+        }
+
+        return (data, response)
+    }
+
     func fetchRequests(city: String? = nil, page: Int = 1, limit: Int? = nil, token: String? = nil) async throws -> [BloodRequest] {
         let pageSize = limit ?? defaultPageSize
         let urlStr: String
@@ -50,11 +89,11 @@ class APIService {
         guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
-        if let token = token {
+        if let token = authorizedToken(fallback: token) {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: request.value(forHTTPHeaderField: "Authorization") != nil)
         try validateResponse(data: data, response: response)
         return try JSONDecoder().decode([BloodRequest].self, from: data)
     }
@@ -66,7 +105,7 @@ class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
         let body: [String: Any] = [
             "bloodTypes": bloodTypes,
@@ -78,7 +117,7 @@ class APIService {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
         return try JSONDecoder().decode(BloodRequest.self, from: data)
     }
@@ -88,9 +127,9 @@ class APIService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
     }
 
@@ -98,9 +137,9 @@ class APIService {
         guard let url = URL(string: "\(baseURL)/chats") else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
         return try JSONDecoder().decode([Chat].self, from: data)
     }
@@ -109,9 +148,9 @@ class APIService {
         guard let url = URL(string: "\(baseURL)/chats/\(chatId)") else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
         return try JSONDecoder().decode(ChatDetailResponse.self, from: data).messages
     }
@@ -120,11 +159,38 @@ class APIService {
         guard let url = URL(string: "\(baseURL)/notifications") else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
         return try JSONDecoder().decode([AppNotification].self, from: data)
+    }
+
+    func fetchMyRequests(token: String) async throws -> [BloodRequest] {
+        guard let url = URL(string: "\(baseURL)/requests/my") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        return try JSONDecoder().decode([BloodRequest].self, from: data)
+    }
+
+    func fetchAcceptedRequests(token: String) async throws -> [BloodRequest] {
+        guard let url = URL(string: "\(baseURL)/requests/accepted") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        return try JSONDecoder().decode([BloodRequest].self, from: data)
+    }
+
+    func fetchRefusedRequests(token: String) async throws -> [BloodRequest] {
+        guard let url = URL(string: "\(baseURL)/requests/refused") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        return try JSONDecoder().decode([BloodRequest].self, from: data)
     }
 
     func sendMessage(chatId: String, content: String, token: String) async throws -> Message {
@@ -133,14 +199,38 @@ class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
         let body = ["text": content]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
         return try JSONDecoder().decode(Message.self, from: data)
+    }
+
+    func changePassword(currentPassword: String, newPassword: String, token: String) async throws {
+        guard let url = URL(string: "\(baseURL)/users/me/password") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "currentPassword": currentPassword,
+            "newPassword": newPassword,
+        ])
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+    }
+
+    func deleteAccount(token: String) async throws {
+        guard let url = URL(string: "\(baseURL)/users/me") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        _ = try? JSONDecoder().decode(EmptyResponse.self, from: data)
     }
 
     func registerUser(_ payload: RegisterPayload) async throws {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationsView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     @ObservedObject private var wsService = WebSocketService.shared
 
     @State private var notifications: [AppNotification] = []
@@ -13,7 +14,7 @@ struct NotificationsView: View {
                 if !authService.isLoggedIn {
                     SignInPromptView(
                         icon: "bell.badge",
-                        message: "Sign in to receive notifications"
+                        message: localization.text("notifications.sign_in_message")
                     )
                 } else if isLoading {
                     ProgressView()
@@ -22,9 +23,9 @@ struct NotificationsView: View {
                         Image(systemName: "bell.slash")
                             .font(.system(size: 48))
                             .foregroundColor(.gray)
-                        Text("No notifications yet")
+                        Text(localization.text("notifications.empty_title"))
                             .font(.headline)
-                        Text("When someone in your city creates a request, new alerts should appear here.")
+                        Text(localization.text("notifications.empty_text"))
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                     }
@@ -39,7 +40,7 @@ struct NotificationsView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Notifications")
+            .navigationTitle(localization.text("notifications.title"))
             .navigationBarTitleDisplayMode(.large)
         }
         .task {

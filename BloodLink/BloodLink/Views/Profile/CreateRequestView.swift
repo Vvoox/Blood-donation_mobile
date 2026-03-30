@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CreateRequestView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     @Environment(\.dismiss) var dismiss
 
     @State private var selectedBloodTypes: Set<String> = []
@@ -19,8 +20,8 @@ struct CreateRequestView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("Blood Types Needed") {
-                    Toggle("Accept any blood type", isOn: $acceptAnyBloodType)
+                Section(localization.text("create_request.section_blood")) {
+                    Toggle(localization.text("create_request.accept_any"), isOn: $acceptAnyBloodType)
                         .tint(Color(red: 0.776, green: 0.157, blue: 0.157))
 
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
@@ -39,16 +40,16 @@ struct CreateRequestView: View {
                     .disabled(acceptAnyBloodType)
                 }
 
-                Section("Location & Details") {
-                    Picker("City", selection: $city) {
-                        Text("Select city").tag("")
+                Section(localization.text("create_request.section_location")) {
+                    Picker(localization.text("create_request.city"), selection: $city) {
+                        Text(localization.text("create_request.select_city")).tag("")
                         ForEach(cities, id: \.self) { Text($0).tag($0) }
                     }
-                    Stepper("Donors needed: \(donorsNeeded)", value: $donorsNeeded, in: 1...10)
-                    DatePicker("Deadline", selection: $deadline, displayedComponents: .date)
+                    Stepper(localization.text("create_request.donors_needed", donorsNeeded), value: $donorsNeeded, in: 1...10)
+                    DatePicker(localization.text("create_request.deadline"), selection: $deadline, displayedComponents: .date)
                 }
 
-                Section("Additional Notes") {
+                Section(localization.text("create_request.section_notes")) {
                     TextEditor(text: $notes)
                         .frame(minHeight: 80)
                 }
@@ -59,11 +60,11 @@ struct CreateRequestView: View {
                     }
                 }
             }
-            .navigationTitle("New Blood Request")
+            .navigationTitle(localization.text("create_request.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button(localization.text("common.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -72,7 +73,7 @@ struct CreateRequestView: View {
                         if isSubmitting {
                             ProgressView()
                         } else {
-                            Text("Post").bold()
+                            Text(localization.text("common.post")).bold()
                         }
                     }
                     .disabled((selectedBloodTypes.isEmpty && !acceptAnyBloodType) || city.isEmpty || isSubmitting)

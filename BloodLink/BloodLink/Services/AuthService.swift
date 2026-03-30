@@ -1,17 +1,30 @@
 import Foundation
 import Combine
 
-class AuthService: ObservableObject {
+class AuthService: ObservableObject, APIServiceAuthDelegate {
     @Published var isLoggedIn = false
     @Published var currentUser: User?
     @Published var accessToken: String?
+    @Published var rememberMe: Bool {
+        didSet {
+            defaults.set(rememberMe, forKey: rememberMeKey)
+            if !rememberMe {
+                clearPersistedSession()
+            }
+        }
+    }
     @Published var isLoading = false
     @Published var errorMessage: String?
+    private var refreshToken: String?
 
     private let keycloakURL = "https://keycloak.3olba.com"
     private let realm = "blood-donation"
     private let clientId = "blood-donation-app"
-    private let redirectURI = "bloodlink://auth"
+    private let defaults = UserDefaults.standard
+    private let accessTokenKey = "auth_access_token"
+    private let refreshTokenKey = "auth_refresh_token"
+    private let userKey = "auth_current_user"
+    private let rememberMeKey = "auth_remember_me"
 
     private struct TokenResponse: Decodable {
         let accessToken: String
@@ -29,15 +42,41 @@ class AuthService: ObservableObject {
         }
     }
 
-    var registrationURL: URL? {
-        var components = URLComponents(string: "\(keycloakURL)/realms/\(realm)/protocol/openid-connect/registrations")
-        components?.queryItems = [
-            URLQueryItem(name: "client_id", value: clientId),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: "openid profile email"),
-            URLQueryItem(name: "redirect_uri", value: redirectURI)
-        ]
-        return components?.url
+    private struct AccessTokenClaims: Decodable {
+        let sub: String
+        let email: String?
+        let name: String?
+        let preferredUsername: String?
+        let givenName: String?
+        let familyName: String?
+        let city: String?
+        let bloodType: String?
+
+        enum CodingKeys: String, CodingKey {
+            case sub
+            case email
+            case name
+            case preferredUsername = "preferred_username"
+            case givenName = "given_name"
+            case familyName = "family_name"
+            case city
+            case bloodType = "blood_type"
+        }
+    }
+
+    init() {
+        APIService.shared.authDelegate = self
+        rememberMe = defaults.bool(forKey: rememberMeKey)
+        refreshToken = defaults.string(forKey: refreshTokenKey)
+
+        if rememberMe {
+            if let storedUser = loadPersistedUser() {
+                currentUser = storedUser
+            }
+            isLoggedIn = defaults.string(forKey: accessTokenKey) != nil
+                || defaults.string(forKey: refreshTokenKey) != nil
+            Task { await restoreSessionIfNeeded() }
+        }
     }
 
     func login(email: String, password: String) {
@@ -70,25 +109,81 @@ class AuthService: ObservableObject {
                 guard let data = data else { return }
 
                 if let tokenResponse = try? JSONDecoder().decode(TokenResponse.self, from: data) {
-                    self?.accessToken = tokenResponse.accessToken
-                    self?.currentUser = User(
-                        id: UUID().uuidString,
-                        email: email,
-                        name: email,
-                        city: "",
-                        bloodType: ""
+                    self?.completeSession(
+                        with: tokenResponse,
+                        fallbackEmail: email,
+                        persistSession: self?.rememberMe ?? false
                     )
-                    self?.isLoggedIn = true
-                    self?.fetchUserInfo(token: tokenResponse.accessToken)
                 } else {
                     let apiError = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error_description"] as? String
                     let statusCode = (response as? HTTPURLResponse)?.statusCode
                     self?.errorMessage = apiError ?? (statusCode == 401 || statusCode == 400
-                        ? "Invalid credentials. Please check your email and password."
-                        : "Unable to sign in right now. Please try again.")
+                        ? LocalizationService().text("login.error.invalid_credentials")
+                        : LocalizationService().text("login.error.unavailable"))
                 }
             }
         }.resume()
+    }
+
+    private func decodeUserFromAccessToken(_ token: String) -> User? {
+        let segments = token.split(separator: ".")
+        guard segments.count > 1 else { return nil }
+
+        var payload = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        let remainder = payload.count % 4
+        if remainder > 0 {
+            payload += String(repeating: "=", count: 4 - remainder)
+        }
+
+        guard let payloadData = Data(base64Encoded: payload),
+              let claims = try? JSONDecoder().decode(AccessTokenClaims.self, from: payloadData) else {
+            return nil
+        }
+
+        let fullName =
+            claims.name
+            ?? [claims.givenName, claims.familyName]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            ?? claims.preferredUsername
+            ?? claims.email
+            ?? ""
+
+        return User(
+            id: claims.sub,
+            email: claims.email ?? "",
+            name: fullName,
+            city: claims.city ?? "",
+            bloodType: claims.bloodType ?? ""
+        )
+    }
+
+    private func completeSession(with tokenResponse: TokenResponse, fallbackEmail: String, persistSession: Bool) {
+        accessToken = tokenResponse.accessToken
+        refreshToken = tokenResponse.refreshToken ?? refreshToken
+        currentUser = decodeUserFromAccessToken(tokenResponse.accessToken) ?? User(
+            id: fallbackEmail,
+            email: fallbackEmail,
+            name: fallbackEmail,
+            city: "",
+            bloodType: ""
+        )
+        isLoggedIn = true
+        WebSocketService.shared.connect(token: tokenResponse.accessToken)
+
+        if persistSession {
+            persistSessionData(
+                accessToken: tokenResponse.accessToken,
+                refreshToken: refreshToken,
+                user: currentUser
+            )
+        }
+
+        fetchUserInfo(token: tokenResponse.accessToken)
     }
 
     private func fetchUserInfo(token: String) {
@@ -135,8 +230,111 @@ class AuthService: ObservableObject {
                 self?.currentUser = user
                 self?.isLoggedIn = true
                 WebSocketService.shared.connect(token: token)
+                if self?.rememberMe == true {
+                    self?.persistSessionData(
+                        accessToken: token,
+                        refreshToken: self?.refreshToken,
+                        user: user
+                    )
+                }
             }
         }.resume()
+    }
+
+    private func restoreSessionIfNeeded() async {
+        if let refreshToken, !refreshToken.isEmpty {
+            await refreshSession(using: refreshToken)
+            return
+        }
+
+        if let storedAccessToken = defaults.string(forKey: accessTokenKey), !storedAccessToken.isEmpty {
+            await MainActor.run {
+                accessToken = storedAccessToken
+                isLoggedIn = true
+                if let storedUser = loadPersistedUser() {
+                    currentUser = storedUser
+                }
+                WebSocketService.shared.connect(token: storedAccessToken)
+                fetchUserInfo(token: storedAccessToken)
+            }
+        }
+    }
+
+    private func refreshSession(using refreshToken: String) async {
+        guard let url = URL(string: "\(keycloakURL)/realms/\(realm)/protocol/openid-connect/token") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "grant_type", value: "refresh_token"),
+            URLQueryItem(name: "client_id", value: clientId),
+            URLQueryItem(name: "refresh_token", value: refreshToken)
+        ]
+        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
+            await MainActor.run {
+                completeSession(
+                    with: tokenResponse,
+                    fallbackEmail: loadPersistedUser()?.email ?? "",
+                    persistSession: true
+                )
+            }
+        } catch {
+            await MainActor.run {
+                clearPersistedSession()
+                isLoggedIn = false
+                currentUser = nil
+                accessToken = nil
+            }
+        }
+    }
+
+    private func persistSessionData(accessToken: String, refreshToken: String?, user: User?) {
+        defaults.set(accessToken, forKey: accessTokenKey)
+        if let refreshToken, !refreshToken.isEmpty {
+            defaults.set(refreshToken, forKey: refreshTokenKey)
+        }
+        if let user,
+           let encoded = try? JSONEncoder().encode(user) {
+            defaults.set(encoded, forKey: userKey)
+        }
+    }
+
+    private func loadPersistedUser() -> User? {
+        guard let data = defaults.data(forKey: userKey) else { return nil }
+        return try? JSONDecoder().decode(User.self, from: data)
+    }
+
+    private func clearPersistedSession() {
+        defaults.removeObject(forKey: accessTokenKey)
+        defaults.removeObject(forKey: refreshTokenKey)
+        defaults.removeObject(forKey: userKey)
+    }
+
+    var currentAccessToken: String? {
+        accessToken
+    }
+
+    func refreshAccessTokenIfNeeded() async -> String? {
+        let candidateRefreshToken = refreshToken ?? defaults.string(forKey: refreshTokenKey)
+        guard let candidateRefreshToken, !candidateRefreshToken.isEmpty else {
+            return nil
+        }
+
+        await refreshSession(using: candidateRefreshToken)
+        return accessToken
+    }
+
+    func handleAuthenticationFailure() {
+        DispatchQueue.main.async {
+            self.logout()
+        }
     }
 
     func logout() {
@@ -144,5 +342,7 @@ class AuthService: ObservableObject {
         isLoggedIn = false
         currentUser = nil
         accessToken = nil
+        refreshToken = nil
+        clearPersistedSession()
     }
 }

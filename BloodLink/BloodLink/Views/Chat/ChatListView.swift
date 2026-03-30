@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ChatListView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
+    @ObservedObject private var wsService = WebSocketService.shared
     @State private var chats: [Chat] = []
     @State private var isLoading = false
     @State private var selectedChat: Chat?
@@ -13,7 +15,7 @@ struct ChatListView: View {
                 if !authService.isLoggedIn {
                     SignInPromptView(
                         icon: "bubble.left.and.bubble.right",
-                        message: "Sign in to view your messages"
+                        message: localization.text("chats.sign_in_message")
                     )
                 } else if isLoading {
                     ProgressView()
@@ -22,9 +24,9 @@ struct ChatListView: View {
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 48))
                             .foregroundColor(.gray)
-                        Text("No conversations yet")
+                        Text(localization.text("chats.empty_title"))
                             .foregroundColor(.secondary)
-                        Text("Accept a blood request to start chatting")
+                        Text(localization.text("chats.empty_text"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -40,11 +42,12 @@ struct ChatListView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Messages")
+            .navigationTitle(localization.text("chats.title"))
             .navigationBarTitleDisplayMode(.large)
             .sheet(item: $selectedChat) { chat in
                 ChatView(chat: chat)
                     .environmentObject(authService)
+                    .environmentObject(localization)
             }
         }
         .task {
@@ -54,6 +57,10 @@ struct ChatListView: View {
             if isLoggedIn { Task { await loadChats(showLoader: true) } }
         }
         .onReceive(refreshTimer) { _ in
+            guard authService.isLoggedIn else { return }
+            Task { await loadChats(showLoader: false) }
+        }
+        .onChange(of: wsService.latestMessage) { _ in
             guard authService.isLoggedIn else { return }
             Task { await loadChats(showLoader: false) }
         }
@@ -80,6 +87,7 @@ struct ChatListView: View {
 struct ChatRow: View {
     let chat: Chat
     let currentUserId: String
+    @EnvironmentObject var localization: LocalizationService
 
     var body: some View {
         let otherUserName = chat.donorId == currentUserId ? chat.requesterName : chat.donorName
@@ -107,7 +115,7 @@ struct ChatRow: View {
                 }
 
                 HStack {
-                    Text(chat.lastMessageText ?? "No messages yet")
+                    Text(chat.lastMessageText ?? localization.text("chats.no_messages"))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(1)

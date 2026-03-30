@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SignInPromptView: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var localization: LocalizationService
     @State private var showLogin = false
 
     let icon: String
@@ -19,7 +20,7 @@ struct SignInPromptView: View {
             }
 
             VStack(spacing: 8) {
-                Text("Sign in to continue")
+                Text(localization.text("prompt.sign_in_title"))
                     .font(.title3)
                     .fontWeight(.bold)
 
@@ -29,7 +30,7 @@ struct SignInPromptView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button("Sign In") {
+            Button(localization.text("prompt.sign_in")) {
                 showLogin = true
             }
             .fontWeight(.semibold)
@@ -46,6 +47,7 @@ struct SignInPromptView: View {
         .sheet(isPresented: $showLogin) {
             LoginView()
                 .environmentObject(authService)
+                .environmentObject(localization)
         }
         .onChange(of: authService.isLoggedIn) { isLoggedIn in
             if isLoggedIn { showLogin = false }
