@@ -58,6 +58,26 @@ struct BloodRequest: Codable, Identifiable {
     }
 }
 
+struct DonorRequestUpdate: Codable, Identifiable, Equatable {
+    var id: String
+    var requestId: String
+    var donorId: String
+    var donorName: String
+    var actionType: String
+    var message: String
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case requestId = "request_id"
+        case donorId = "donor_id"
+        case donorName = "donor_name"
+        case actionType = "action_type"
+        case message
+        case createdAt = "created_at"
+    }
+}
+
 struct Chat: Codable, Identifiable {
     var id: String
     var requestId: String
@@ -139,5 +159,6 @@ struct AppNotification: Codable, Identifiable, Equatable {
 enum NotificationType: String, Codable {
     case newRequest = "new_request"
     case requestAccepted = "request_accepted"
+    case requestUpdate = "request_update"
     case message = "message"
 }

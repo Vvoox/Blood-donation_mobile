@@ -50,6 +50,19 @@ function normalizeRequestRow(row) {
   };
 }
 
+function normalizeDonorUpdateRow(row) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    request_id: row.request_id,
+    donor_id: row.donor_id,
+    donor_name: row.donor_name,
+    action_type: row.action_type,
+    message: row.message,
+    created_at: row.created_at,
+  };
+}
+
 function getSigningKey(header, callback) {
   jwks.getSigningKey(header.kid, (err, key) => {
     if (err) return callback(err);
@@ -502,7 +515,18 @@ app.get('/requests/:id([0-9a-fA-F-]{36})', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Blood request not found' });
     }
 
-    res.json(normalizeRequestRow(result.rows[0]));
+    const donorUpdates = await pool.query(
+      `SELECT id, request_id, donor_id, donor_name, action_type, message, created_at
+       FROM donor_request_updates
+       WHERE request_id = $1
+       ORDER BY created_at DESC`,
+      [id]
+    );
+
+    res.json({
+      request: normalizeRequestRow(result.rows[0]),
+      donor_updates: donorUpdates.rows.map(normalizeDonorUpdateRow),
+    });
   } catch (err) {
     console.error('GET /requests/:id error:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -810,6 +834,68 @@ app.post('/requests/:id([0-9a-fA-F-]{36})/accept', requireAuth, async (req, res)
     res.status(500).json({ error: 'Internal server error', details: err.message });
   } finally {
     client.release();
+  }
+});
+
+app.post('/requests/:id([0-9a-fA-F-]{36})/donor-response', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const actionType = String(req.body.actionType || '').trim();
+    const allowedActions = {
+      available_now: "I'm available now",
+      on_my_way: "I'm on my way",
+      call_requester: "Please call me",
+      view_location: "I need the exact location",
+      cancel_acceptance: "I can no longer help with this request",
+    };
+
+    if (!allowedActions[actionType]) {
+      return res.status(400).json({ error: 'Invalid donor action' });
+    }
+
+    const requestResult = await pool.query(
+      `SELECT id, creator_id, city FROM blood_requests WHERE id = $1`,
+      [id]
+    );
+
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Blood request not found' });
+    }
+
+    const acceptedResult = await pool.query(
+      `SELECT id FROM request_acceptances WHERE request_id = $1 AND donor_id = $2`,
+      [id, req.user.userId]
+    );
+
+    if (acceptedResult.rows.length === 0) {
+      return res.status(403).json({ error: 'Only accepted donors can send quick updates' });
+    }
+
+    const requestRow = requestResult.rows[0];
+    const message = `${req.user.name}: ${allowedActions[actionType]}`;
+
+    const updateResult = await pool.query(
+      `INSERT INTO donor_request_updates (request_id, donor_id, donor_name, action_type, message)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, request_id, donor_id, donor_name, action_type, message, created_at`,
+      [id, req.user.userId, req.user.name, actionType, message]
+    );
+
+    await createNotification({
+      userId: requestRow.creator_id,
+      type: 'request_update',
+      message,
+      requestId: id,
+      metadata: {
+        donorId: req.user.userId,
+        donorAction: actionType,
+      },
+    });
+
+    res.status(201).json(normalizeDonorUpdateRow(updateResult.rows[0]));
+  } catch (err) {
+    console.error('POST /requests/:id/donor-response error:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
 

@@ -3,19 +3,47 @@ import SwiftUI
 struct RequestDetailView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var localization: LocalizationService
-    let request: BloodRequest
-    @State private var isAccepting = false
-    @State private var accepted = false
-    @State private var errorMessage: String?
     @Environment(\.dismiss) var dismiss
+
+    let request: BloodRequest
+
+    @State private var currentRequest: BloodRequest
+    @State private var donorUpdates: [DonorRequestUpdate] = []
+    @State private var isAccepting = false
+    @State private var isLoadingDetail = false
+    @State private var isSendingAction = false
+    @State private var accepted = false
+    @State private var actionMessage: String?
+    @State private var errorMessage: String?
+
+    init(request: BloodRequest) {
+        self.request = request
+        _currentRequest = State(initialValue: request)
+        _accepted = State(initialValue: request.acceptedByMe)
+    }
+
+    private struct QuickAction: Identifiable {
+        let id: String
+        let title: String
+        let icon: String
+        let color: Color
+    }
+
+    private let quickActions: [QuickAction] = [
+        .init(id: "available_now", title: "I'm available now", icon: "checkmark.circle.fill", color: .green),
+        .init(id: "on_my_way", title: "I'm on my way", icon: "car.fill", color: .blue),
+        .init(id: "call_requester", title: "Call requester", icon: "phone.fill", color: .orange),
+        .init(id: "view_location", title: "View location", icon: "location.fill", color: .purple),
+        .init(id: "cancel_acceptance", title: "Cancel acceptance", icon: "xmark.circle.fill", color: .red),
+    ]
 
     private var isOwnRequest: Bool {
         let currentUser = authService.currentUser
-        let normalizedRequesterName = request.requesterName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedRequesterName = currentRequest.requesterName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let normalizedUserName = currentUser?.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         let normalizedEmail = currentUser?.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
 
-        return request.requesterId == currentUser?.id
+        return currentRequest.requesterId == currentUser?.id
             || (!normalizedRequesterName.isEmpty && normalizedRequesterName == normalizedUserName)
             || (!normalizedRequesterName.isEmpty && normalizedRequesterName == normalizedEmail)
     }
@@ -24,97 +52,66 @@ struct RequestDetailView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    HStack {
-                        if request.bloodTypes.isEmpty {
-                            Text(localization.text("request_detail.any_type"))
-                                .font(.title3).bold()
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .background(Color(red: 0.776, green: 0.157, blue: 0.157))
-                                .foregroundColor(.white)
-                                .cornerRadius(8)
-                        } else {
-                            ForEach(request.bloodTypes, id: \.self) { bt in
-                                Text(bt)
-                                    .font(.title3).bold()
-                                    .padding(.horizontal, 14).padding(.vertical, 8)
-                                    .background(Color(red: 0.776, green: 0.157, blue: 0.157))
-                                    .foregroundColor(.white)
-                                    .cornerRadius(8)
-                            }
-                        }
-                    }
+                    bloodTypeChips
 
                     VStack(alignment: .leading, spacing: 8) {
-                        InfoRow(icon: "person.fill", label: localization.text("request_detail.requester"), value: request.requesterName)
-                        InfoRow(icon: "location.fill", label: localization.text("request_detail.city"), value: request.city)
-                        InfoRow(icon: "person.2.fill", label: localization.text("request_detail.donors_needed"), value: "\(request.donorsAccepted)/\(request.donorsNeeded)")
-                        InfoRow(icon: "calendar", label: localization.text("request_detail.deadline"), value: String(request.deadline.prefix(10)))
+                        InfoRow(icon: "person.fill", label: localization.text("request_detail.requester"), value: currentRequest.requesterName)
+                        InfoRow(icon: "location.fill", label: localization.text("request_detail.city"), value: currentRequest.city)
+                        InfoRow(icon: "person.2.fill", label: localization.text("request_detail.donors_needed"), value: "\(currentRequest.donorsAccepted)/\(currentRequest.donorsNeeded)")
+                        InfoRow(icon: "calendar", label: localization.text("request_detail.deadline"), value: String(currentRequest.deadline.prefix(10)))
                     }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
 
-                    if let notes = request.notes, !notes.isEmpty {
+                    if let notes = currentRequest.notes, !notes.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(localization.text("request_detail.notes")).font(.headline)
-                            Text(notes).foregroundColor(.secondary)
+                            Text(localization.text("request_detail.notes"))
+                                .font(.headline)
+                            Text(notes)
+                                .foregroundColor(.secondary)
                         }
                     }
 
-                    if let error = errorMessage {
-                        Text(error).foregroundColor(.red).font(.caption)
+                    if isOwnRequest {
+                        donorAnswersCard
                     }
 
-                    if accepted || request.acceptedByMe {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color.green)
-                                .frame(height: 52)
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text(localization.text("request_detail.already_accepted"))
-                                    .fontWeight(.bold)
-                            }
-                            .foregroundColor(.white)
-                        }
+                    if accepted || currentRequest.acceptedByMe {
+                        acceptedStateView
                     } else if authService.isLoggedIn && isOwnRequest {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color(.systemGray4))
-                                .frame(height: 52)
-                            HStack(spacing: 8) {
-                                Image(systemName: "person.crop.circle.badge.checkmark")
-                                Text(localization.text("request_detail.my_request"))
-                                    .fontWeight(.bold)
-                            }
-                            .foregroundColor(.white)
-                        }
-                        .opacity(0.9)
+                        myRequestStateView
                     } else if authService.isLoggedIn {
-                        Button {
-                            Task { await acceptRequest() }
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(Color(red: 0.776, green: 0.157, blue: 0.157))
-                                    .frame(height: 52)
-                                if isAccepting {
-                                    ProgressView().tint(.white)
-                                } else {
-                                    Text(localization.text("request_detail.accept"))
-                                        .fontWeight(.bold).foregroundColor(.white)
-                                }
-                            }
-                        }
-                        .disabled(isAccepting)
-                    } else if !authService.isLoggedIn {
+                        acceptButton
+                    } else {
                         SignInPromptView(
                             icon: "person.crop.circle.badge.exclamationmark",
                             message: localization.text("request_detail.sign_in_message")
                         )
                     }
+
+                    if accepted || currentRequest.acceptedByMe {
+                        donorActionsCard
+                    }
+
+                    if let actionMessage {
+                        Text(actionMessage)
+                            .foregroundColor(.green)
+                            .font(.caption)
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
                 }
                 .padding()
+            }
+            .overlay {
+                if isLoadingDetail {
+                    ProgressView()
+                }
             }
             .navigationTitle(localization.text("request_detail.title"))
             .navigationBarTitleDisplayMode(.inline)
@@ -124,21 +121,222 @@ struct RequestDetailView: View {
                 }
             }
         }
-        .onAppear {
-            accepted = request.acceptedByMe
+        .task {
+            await loadDetail()
         }
     }
 
-    func acceptRequest() async {
+    private var bloodTypeChips: some View {
+        HStack {
+            if currentRequest.bloodTypes.isEmpty {
+                Text(localization.text("request_detail.any_type"))
+                    .font(.title3).bold()
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            } else {
+                ForEach(currentRequest.bloodTypes, id: \.self) { bt in
+                    Text(bt)
+                        .font(.title3).bold()
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+            }
+        }
+    }
+
+    private var acceptedStateView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.green)
+                .frame(height: 52)
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                Text(localization.text("request_detail.already_accepted"))
+                    .fontWeight(.bold)
+            }
+            .foregroundColor(.white)
+        }
+    }
+
+    private var myRequestStateView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.systemGray4))
+                .frame(height: 52)
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                Text(localization.text("request_detail.my_request"))
+                    .fontWeight(.bold)
+            }
+            .foregroundColor(.white)
+        }
+        .opacity(0.9)
+    }
+
+    private var acceptButton: some View {
+        Button {
+            Task { await acceptRequest() }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(red: 0.776, green: 0.157, blue: 0.157))
+                    .frame(height: 52)
+                if isAccepting {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(localization.text("request_detail.accept"))
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .disabled(isAccepting)
+    }
+
+    private var donorActionsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Quick donor actions")
+                .font(.headline)
+
+            ForEach(quickActions) { action in
+                Button {
+                    Task { await sendQuickAction(action.id) }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: action.icon)
+                            .foregroundColor(action.color)
+                            .frame(width: 24)
+                        Text(action.title)
+                            .foregroundColor(.primary)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        if isSendingAction {
+                            ProgressView()
+                        }
+                    }
+                    .padding(14)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(14)
+                }
+                .buttonStyle(.plain)
+                .disabled(isSendingAction)
+            }
+        }
+        .padding(18)
+        .background(Color(.systemBackground))
+        .cornerRadius(18)
+    }
+
+    private var donorAnswersCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Donor answers")
+                    .font(.headline)
+                Spacer()
+                Text("\(donorUpdates.count)")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color(red: 0.776, green: 0.157, blue: 0.157).opacity(0.12))
+                    .foregroundColor(Color(red: 0.776, green: 0.157, blue: 0.157))
+                    .cornerRadius(999)
+            }
+
+            if donorUpdates.isEmpty {
+                Text("No donor answers yet.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(donorUpdates) { update in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(update.donorName)
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                Spacer()
+                                Text(formatTime(update.createdAt))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Text(update.message)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(14)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(Color(.systemBackground))
+        .cornerRadius(18)
+    }
+
+    private func loadDetail() async {
+        isLoadingDetail = true
+        defer { isLoadingDetail = false }
+        do {
+            let token = authService.accessToken
+            let (fetchedRequest, updates) = try await APIService.shared.fetchRequestDetail(requestId: currentRequest.id, token: token)
+            currentRequest = fetchedRequest
+            donorUpdates = updates
+            accepted = fetchedRequest.acceptedByMe
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func acceptRequest() async {
         guard let token = authService.accessToken else { return }
         isAccepting = true
+        errorMessage = nil
         do {
-            try await APIService.shared.acceptRequest(requestId: request.id, token: token)
+            try await APIService.shared.acceptRequest(requestId: currentRequest.id, token: token)
             accepted = true
+            await loadDetail()
         } catch {
             errorMessage = localization.text("request_detail.error_accept")
         }
         isAccepting = false
+    }
+
+    private func sendQuickAction(_ actionType: String) async {
+        guard let token = authService.accessToken else { return }
+        isSendingAction = true
+        errorMessage = nil
+        actionMessage = nil
+        do {
+            let update = try await APIService.shared.sendDonorQuickAction(
+                requestId: currentRequest.id,
+                actionType: actionType,
+                token: token
+            )
+            donorUpdates.insert(update, at: 0)
+            actionMessage = "Your update was sent to the requester."
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isSendingAction = false
+    }
+
+    private func formatTime(_ dateStr: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: dateStr) {
+            let display = DateFormatter()
+            display.dateFormat = "HH:mm"
+            return display.string(from: date)
+        }
+        return String(dateStr.prefix(16))
     }
 }
 

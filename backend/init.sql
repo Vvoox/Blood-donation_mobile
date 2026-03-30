@@ -76,6 +76,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS donor_request_updates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID REFERENCES blood_requests(id) ON DELETE CASCADE,
+  donor_id VARCHAR(255) NOT NULL,
+  donor_name VARCHAR(255) NOT NULL,
+  action_type VARCHAR(50) NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Seed demo requests
 INSERT INTO blood_requests (creator_id, creator_name, blood_types, city, country, people_needed, deadline, notes)
 VALUES

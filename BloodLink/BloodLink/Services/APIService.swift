@@ -21,6 +21,16 @@ class APIService {
         let messages: [Message]
     }
 
+    private struct RequestDetailResponse: Decodable {
+        let request: BloodRequest
+        let donorUpdates: [DonorRequestUpdate]
+
+        enum CodingKeys: String, CodingKey {
+            case request
+            case donorUpdates = "donor_updates"
+        }
+    }
+
     private struct EmptyResponse: Decodable {}
 
     struct APIError: LocalizedError {
@@ -200,6 +210,34 @@ class APIService {
 
         let (data, response) = try await execute(request, allowRefresh: true)
         try validateResponse(data: data, response: response)
+    }
+
+    func fetchRequestDetail(requestId: String, token: String? = nil) async throws -> (BloodRequest, [DonorRequestUpdate]) {
+        guard let url = URL(string: "\(baseURL)/requests/\(requestId)") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        if let token = authorizedToken(fallback: token) {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await execute(request, allowRefresh: request.value(forHTTPHeaderField: "Authorization") != nil)
+        try validateResponse(data: data, response: response)
+        let decoded = try JSONDecoder().decode(RequestDetailResponse.self, from: data)
+        return (decoded.request, decoded.donorUpdates)
+    }
+
+    func sendDonorQuickAction(requestId: String, actionType: String, token: String) async throws -> DonorRequestUpdate {
+        guard let url = URL(string: "\(baseURL)/requests/\(requestId)/donor-response") else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "actionType": actionType,
+        ])
+
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        return try JSONDecoder().decode(DonorRequestUpdate.self, from: data)
     }
 
     func fetchChats(token: String) async throws -> [Chat] {
