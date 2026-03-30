@@ -63,6 +63,7 @@ struct DonorRequestUpdate: Codable, Identifiable, Equatable {
     var requestId: String
     var donorId: String
     var donorName: String
+    var chatId: String?
     var actionType: String
     var message: String
     var createdAt: String
@@ -72,6 +73,7 @@ struct DonorRequestUpdate: Codable, Identifiable, Equatable {
         case requestId = "request_id"
         case donorId = "donor_id"
         case donorName = "donor_name"
+        case chatId = "chat_id"
         case actionType = "action_type"
         case message
         case createdAt = "created_at"

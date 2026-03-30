@@ -9,6 +9,8 @@ struct RequestDetailView: View {
 
     @State private var currentRequest: BloodRequest
     @State private var donorUpdates: [DonorRequestUpdate] = []
+    @State private var availableChats: [Chat] = []
+    @State private var selectedChat: Chat?
     @State private var isAccepting = false
     @State private var isLoadingDetail = false
     @State private var isSendingAction = false
@@ -129,6 +131,11 @@ struct RequestDetailView: View {
         }
         .task {
             await loadDetail()
+        }
+        .sheet(item: $selectedChat) { chat in
+            ChatView(chat: chat)
+                .environmentObject(authService)
+                .environmentObject(localization)
         }
     }
 
@@ -265,24 +272,34 @@ struct RequestDetailView: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(donorUpdates) { update in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(update.donorName)
+                        Button {
+                            openChat(for: update)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(update.donorName)
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                    Spacer()
+                                    Text(formatTime(update.createdAt))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(update.message)
                                     .font(.subheadline)
-                                    .fontWeight(.bold)
-                                Spacer()
-                                Text(formatTime(update.createdAt))
-                                    .font(.caption)
                                     .foregroundColor(.secondary)
+                                if update.chatId != nil {
+                                    Label("Open chat", systemImage: "message.fill")
+                                        .font(.caption)
+                                        .foregroundColor(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                }
                             }
-                            Text(update.message)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(14)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(14)
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -302,6 +319,9 @@ struct RequestDetailView: View {
             donorUpdates = updates
             accepted = fetchedRequest.acceptedByMe
             selectedActionType = updates.first(where: { $0.donorId == authService.currentUser?.id })?.actionType
+            if let token {
+                availableChats = (try? await APIService.shared.fetchChats(token: token)) ?? []
+            }
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -351,6 +371,11 @@ struct RequestDetailView: View {
             return display.string(from: date)
         }
         return String(dateStr.prefix(16))
+    }
+
+    private func openChat(for update: DonorRequestUpdate) {
+        guard let chatId = update.chatId else { return }
+        selectedChat = availableChats.first(where: { $0.id == chatId })
     }
 }
 

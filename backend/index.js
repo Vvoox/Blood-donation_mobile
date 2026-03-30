@@ -57,6 +57,7 @@ function normalizeDonorUpdateRow(row) {
     request_id: row.request_id,
     donor_id: row.donor_id,
     donor_name: row.donor_name,
+    chat_id: row.chat_id || null,
     action_type: row.action_type,
     message: row.message,
     created_at: row.created_at,
@@ -516,9 +517,12 @@ app.get('/requests/:id([0-9a-fA-F-]{36})', optionalAuth, async (req, res) => {
     }
 
     const donorUpdates = await pool.query(
-      `SELECT id, request_id, donor_id, donor_name, action_type, message, created_at
-       FROM donor_request_updates
-       WHERE request_id = $1
+      `SELECT du.id, du.request_id, du.donor_id, du.donor_name, c.id AS chat_id, du.action_type, du.message, du.created_at
+       FROM donor_request_updates du
+       LEFT JOIN chats c
+         ON c.request_id = du.request_id
+        AND c.donor_id = du.donor_id
+       WHERE du.request_id = $1
        ORDER BY created_at DESC`,
       [id]
     );
