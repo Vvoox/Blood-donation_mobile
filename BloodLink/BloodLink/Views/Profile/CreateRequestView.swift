@@ -179,5 +179,7 @@ struct BloodTypeToggle: View {
                 .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(8)
         }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
     }
 }

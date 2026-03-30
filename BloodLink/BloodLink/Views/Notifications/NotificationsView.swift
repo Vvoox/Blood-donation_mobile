@@ -32,7 +32,7 @@ struct NotificationsView: View {
                     .padding(.horizontal, 28)
                 } else {
                     List {
-                        ForEach(notifications) { notification in
+                        ForEach(requestNotifications) { notification in
                             NotificationRow(notification: notification)
                                 .listRowSeparator(.hidden)
                         }
@@ -53,19 +53,29 @@ struct NotificationsView: View {
         }
         .onChange(of: wsService.newNotification) { notification in
             guard let notification = notification else { return }
-            notifications.insert(notification, at: 0)
+            if isRequestNotification(notification) {
+                notifications.insert(notification, at: 0)
+            }
         }
+    }
+
+    private var requestNotifications: [AppNotification] {
+        notifications.filter(isRequestNotification)
     }
 
     func loadNotifications() async {
         guard let token = authService.accessToken else { return }
         isLoading = true
         do {
-            notifications = try await APIService.shared.fetchNotifications(token: token)
+            notifications = try await APIService.shared.fetchNotifications(token: token).filter(isRequestNotification)
         } catch {
             notifications = []
         }
         isLoading = false
+    }
+
+    private func isRequestNotification(_ notification: AppNotification) -> Bool {
+        notification.type != .message
     }
 }
 

@@ -14,6 +14,9 @@ struct ProfileView: View {
     @State private var isLoadingRequests = false
     @State private var currentPassword = ""
     @State private var newPassword = ""
+    @State private var city = ""
+    @State private var bloodType = "O+"
+    @State private var bloodTypeVisibility = "private"
     @State private var phoneNumber = ""
     @State private var phoneVisibility = "private"
     @State private var settingsMessage: String?
@@ -22,6 +25,8 @@ struct ProfileView: View {
     @State private var isSavingProfile = false
     @State private var isDeletingAccount = false
     @State private var showDeleteConfirmation = false
+    private let cities = ["Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
+    private let bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 
     var body: some View {
         if authService.isLoggedIn {
@@ -198,8 +203,26 @@ struct ProfileView: View {
                     if selectedSection == "settings" {
                         VStack(alignment: .leading, spacing: 14) {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("Phone settings")
+                                Text("Profile settings")
                                     .font(.headline)
+
+                                Picker("City", selection: $city) {
+                                    ForEach(cities, id: \.self) { cityName in
+                                        Text(cityName).tag(cityName)
+                                    }
+                                }
+
+                                Picker("Blood type", selection: $bloodType) {
+                                    ForEach(bloodTypes, id: \.self) { type in
+                                        Text(type).tag(type)
+                                    }
+                                }
+
+                                Picker("Blood type visibility", selection: $bloodTypeVisibility) {
+                                    Text("Private").tag("private")
+                                    Text("Public").tag("public")
+                                }
+                                .pickerStyle(.segmented)
 
                                 TextField("Phone number", text: $phoneNumber)
                                     .keyboardType(.phonePad)
@@ -222,7 +245,7 @@ struct ProfileView: View {
                                             .frame(maxWidth: .infinity)
                                             .padding(.vertical, 14)
                                     } else {
-                                        Text("Save phone settings")
+                                        Text("Save profile settings")
                                             .fontWeight(.bold)
                                             .foregroundColor(.white)
                                             .frame(maxWidth: .infinity)
@@ -342,6 +365,9 @@ struct ProfileView: View {
             }
             .task { await loadRequests() }
             .onAppear {
+                city = authService.currentUser?.city ?? city
+                bloodType = authService.currentUser?.bloodType.isEmpty == false ? authService.currentUser!.bloodType : bloodType
+                bloodTypeVisibility = authService.currentUser?.bloodTypeVisibility ?? "private"
                 phoneNumber = authService.currentUser?.phoneNumber ?? ""
                 phoneVisibility = authService.currentUser?.phoneVisibility ?? "private"
             }
@@ -420,13 +446,16 @@ struct ProfileView: View {
         do {
             let updatedUser = try await APIService.shared.updateProfile(
                 .init(
+                    city: city,
+                    bloodType: bloodType,
+                    bloodTypeVisibility: bloodTypeVisibility,
                     phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
                     phoneVisibility: phoneVisibility
                 ),
                 token: token
             )
             authService.currentUser = updatedUser
-            settingsMessage = "Phone settings updated."
+            settingsMessage = "Profile settings updated."
         } catch {
             settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

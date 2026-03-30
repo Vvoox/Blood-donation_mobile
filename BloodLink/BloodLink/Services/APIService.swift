@@ -35,12 +35,16 @@ class APIService {
         let password: String
         let city: String
         let bloodType: String
+        let bloodTypeVisibility: String
         let country: String
         let phoneNumber: String
         let phoneVisibility: String
     }
 
     struct UpdateProfilePayload {
+        let city: String
+        let bloodType: String
+        let bloodTypeVisibility: String
         let phoneNumber: String
         let phoneVisibility: String
     }
@@ -318,6 +322,9 @@ class APIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "city": payload.city,
+            "bloodType": payload.bloodType,
+            "bloodTypeVisibility": payload.bloodTypeVisibility,
             "phoneNumber": payload.phoneNumber,
             "phoneVisibility": payload.phoneVisibility,
         ])
@@ -351,6 +358,7 @@ class APIService {
             "password": payload.password,
             "city": payload.city,
             "bloodType": payload.bloodType,
+            "bloodTypeVisibility": payload.bloodTypeVisibility,
             "country": payload.country,
             "phoneNumber": payload.phoneNumber,
             "phoneVisibility": payload.phoneVisibility,

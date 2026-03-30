@@ -70,6 +70,7 @@ function buildUserFromDecoded(decoded) {
     email: decoded.email || '',
     city: firstValue(decoded.city) || firstValue(attributes.city) || '',
     bloodType: firstValue(decoded.bloodType) || firstValue(attributes.bloodType) || firstValue(decoded.blood_type) || '',
+    bloodTypeVisibility: firstValue(decoded.bloodTypeVisibility) || firstValue(attributes.bloodTypeVisibility) || firstValue(decoded.blood_type_visibility) || 'private',
     phoneNumber: firstValue(decoded.phoneNumber) || firstValue(attributes.phoneNumber) || firstValue(decoded.phone_number) || '',
     phoneVisibility: firstValue(decoded.phoneVisibility) || firstValue(attributes.phoneVisibility) || firstValue(decoded.phone_visibility) || 'private',
   };
@@ -274,6 +275,7 @@ app.post('/auth/register', async (req, res) => {
       lastName,
       city,
       bloodType,
+      bloodTypeVisibility,
       country,
       phoneNumber,
       phoneVisibility,
@@ -312,6 +314,7 @@ app.post('/auth/register', async (req, res) => {
           city: [city],
           country: [country || 'Morocco'],
           bloodType: [bloodType || ''],
+          bloodTypeVisibility: [bloodTypeVisibility === 'public' ? 'public' : 'private'],
           phoneNumber: [phoneNumber || ''],
           phoneVisibility: [phoneVisibility === 'public' ? 'public' : 'private'],
         },
@@ -337,6 +340,7 @@ app.post('/auth/register', async (req, res) => {
       lastName,
       city,
       bloodType: bloodType || '',
+      bloodTypeVisibility: bloodTypeVisibility === 'public' ? 'public' : 'private',
       phoneNumber: phoneNumber || '',
       phoneVisibility: phoneVisibility === 'public' ? 'public' : 'private',
     });
@@ -1018,6 +1022,13 @@ app.post('/users/me/password', requireAuth, async (req, res) => {
 
 app.put('/users/me/profile', requireAuth, async (req, res) => {
   try {
+    const city = typeof req.body.city === 'string'
+      ? req.body.city.trim()
+      : (req.user.city || '');
+    const bloodType = typeof req.body.bloodType === 'string'
+      ? req.body.bloodType.trim()
+      : (req.user.bloodType || '');
+    const bloodTypeVisibility = req.body.bloodTypeVisibility === 'public' ? 'public' : 'private';
     const phoneNumber = typeof req.body.phoneNumber === 'string'
       ? req.body.phoneNumber.trim()
       : (req.user.phoneNumber || '');
@@ -1025,10 +1036,13 @@ app.put('/users/me/profile', requireAuth, async (req, res) => {
 
     await updateKeycloakUser(req.user.userId, (currentUser) => ({
       ...currentUser,
+      firstName: currentUser.firstName,
+      lastName: currentUser.lastName,
       attributes: {
         ...(currentUser.attributes || {}),
-        city: [req.user.city || firstValue(currentUser.attributes?.city) || ''],
-        bloodType: [req.user.bloodType || firstValue(currentUser.attributes?.bloodType) || ''],
+        city: [city || firstValue(currentUser.attributes?.city) || ''],
+        bloodType: [bloodType || firstValue(currentUser.attributes?.bloodType) || ''],
+        bloodTypeVisibility: [bloodTypeVisibility],
         phoneNumber: [phoneNumber],
         phoneVisibility: [phoneVisibility],
       },
@@ -1038,8 +1052,9 @@ app.put('/users/me/profile', requireAuth, async (req, res) => {
       sub: req.user.userId,
       email: req.user.email,
       name: req.user.name,
-      city: req.user.city,
-      blood_type: req.user.bloodType || '',
+      city,
+      blood_type: bloodType || '',
+      blood_type_visibility: bloodTypeVisibility,
       phone_number: phoneNumber,
       phone_visibility: phoneVisibility,
     });
@@ -1093,6 +1108,7 @@ app.get('/users/me', requireAuth, (req, res) => {
     name: req.user.name,
     city: req.user.city,
     blood_type: req.user.bloodType || '',
+    blood_type_visibility: req.user.bloodTypeVisibility || 'private',
     phone_number: req.user.phoneNumber || '',
     phone_visibility: req.user.phoneVisibility || 'private',
   });

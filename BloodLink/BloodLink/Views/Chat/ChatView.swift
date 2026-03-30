@@ -303,7 +303,7 @@ struct ChatView: View {
             guard let data = try await item.loadTransferable(type: Data.self) else { return }
             guard let image = UIImage(data: data),
                   let optimizedData = image.preparedChatImageData() else {
-                composerError = "Could not prepare the selected image."
+                composerError = "Image must be 5 MB or smaller."
                 clearPendingImage()
                 return
             }
@@ -527,7 +527,7 @@ private extension UIImage {
         return UIImage(data: data)
     }
 
-    func preparedChatImageData(maxDimension: CGFloat = 1600, compressionQuality: CGFloat = 0.72) -> Data? {
+    func preparedChatImageData(maxDimension: CGFloat = 1600, compressionQuality: CGFloat = 0.72, maxBytes: Int = 5 * 1024 * 1024) -> Data? {
         let largestSide = max(size.width, size.height)
         let targetImage: UIImage
 
@@ -542,6 +542,18 @@ private extension UIImage {
             targetImage = self
         }
 
-        return targetImage.jpegData(compressionQuality: compressionQuality)
+        var quality = compressionQuality
+        var encoded = targetImage.jpegData(compressionQuality: quality)
+
+        while let data = encoded, data.count > maxBytes, quality > 0.2 {
+            quality -= 0.08
+            encoded = targetImage.jpegData(compressionQuality: quality)
+        }
+
+        guard let finalData = encoded, finalData.count <= maxBytes else {
+            return nil
+        }
+
+        return finalData
     }
 }

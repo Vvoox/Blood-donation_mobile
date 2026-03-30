@@ -51,6 +51,7 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
         let familyName: String?
         let city: String?
         let bloodType: String?
+        let bloodTypeVisibility: String?
         let phoneNumber: String?
         let phoneVisibility: String?
 
@@ -63,6 +64,7 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
             case familyName = "family_name"
             case city
             case bloodType = "blood_type"
+            case bloodTypeVisibility = "blood_type_visibility"
             case phoneNumber = "phone_number"
             case phoneVisibility = "phone_visibility"
         }
@@ -164,6 +166,7 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
             name: fullName,
             city: claims.city ?? "",
             bloodType: claims.bloodType ?? "",
+            bloodTypeVisibility: claims.bloodTypeVisibility ?? "private",
             phoneNumber: claims.phoneNumber ?? "",
             phoneVisibility: claims.phoneVisibility ?? "private"
         )
@@ -178,6 +181,7 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
             name: fallbackEmail,
             city: "",
             bloodType: "",
+            bloodTypeVisibility: "private",
             phoneNumber: "",
             phoneVisibility: "private"
         )
@@ -235,6 +239,7 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
                         ?? "",
                     city: firstString(json["city"]) == "" ? firstString(attributes?["city"]) : firstString(json["city"]),
                     bloodType: firstString(json["blood_type"]) == "" ? firstString(json["bloodType"]) == "" ? firstString(attributes?["bloodType"]) : firstString(json["bloodType"]) : firstString(json["blood_type"]),
+                    bloodTypeVisibility: firstString(json["blood_type_visibility"]) == "" ? firstString(json["bloodTypeVisibility"]) == "" ? firstString(attributes?["bloodTypeVisibility"]) : firstString(json["bloodTypeVisibility"]) : firstString(json["blood_type_visibility"]),
                     phoneNumber: firstString(json["phone_number"]) == "" ? firstString(json["phoneNumber"]) == "" ? firstString(attributes?["phoneNumber"]) : firstString(json["phoneNumber"]) : firstString(json["phone_number"]),
                     phoneVisibility: firstString(json["phone_visibility"]) == "" ? firstString(json["phoneVisibility"]) == "" ? firstString(attributes?["phoneVisibility"]) : firstString(json["phoneVisibility"]) : firstString(json["phone_visibility"])
                 )
