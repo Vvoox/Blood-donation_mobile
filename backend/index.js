@@ -302,7 +302,7 @@ app.post('/auth/register', async (req, res) => {
 // Get all requests, with optional search filters
 app.get('/requests', optionalAuth, async (req, res) => {
   try {
-    const { city, status, bloodType, creatorId, q } = req.query;
+    const { city, status, bloodType, creatorId, q, requesterName, dateFrom, dateTo } = req.query;
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
     const offset = (page - 1) * limit;
@@ -336,6 +336,21 @@ app.get('/requests', optionalAuth, async (req, res) => {
         OR city ILIKE $${values.length}
         OR COALESCE(notes, '') ILIKE $${values.length}
       )`);
+    }
+
+    if (requesterName) {
+      values.push(`%${String(requesterName).trim()}%`);
+      where.push(`creator_name ILIKE $${values.length}`);
+    }
+
+    if (dateFrom) {
+      values.push(String(dateFrom));
+      where.push(`deadline::date >= $${values.length}::date`);
+    }
+
+    if (dateTo) {
+      values.push(String(dateTo));
+      where.push(`deadline::date <= $${values.length}::date`);
     }
 
     values.push(limit);
@@ -795,10 +810,20 @@ app.get('/chats/:id', requireAuth, async (req, res) => {
 app.post('/chats/:id/messages', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { text } = req.body;
+    const { text, attachmentType, attachmentData, attachmentMimeType, attachmentName } = req.body;
 
-    if (!text || !text.trim()) {
-      return res.status(400).json({ error: 'Message text is required' });
+    const cleanedText = typeof text === 'string' ? text.trim() : '';
+    const cleanedAttachmentType = typeof attachmentType === 'string' ? attachmentType.trim() : '';
+    const cleanedAttachmentData = typeof attachmentData === 'string' ? attachmentData.trim() : '';
+    const cleanedAttachmentMimeType = typeof attachmentMimeType === 'string' ? attachmentMimeType.trim() : null;
+    const cleanedAttachmentName = typeof attachmentName === 'string' ? attachmentName.trim() : null;
+
+    if (!cleanedText && !cleanedAttachmentData) {
+      return res.status(400).json({ error: 'Message text or attachment is required' });
+    }
+
+    if (cleanedAttachmentType && !['image', 'audio'].includes(cleanedAttachmentType)) {
+      return res.status(400).json({ error: 'Unsupported attachment type' });
     }
 
     // Verify chat exists and user is a participant
@@ -817,17 +842,26 @@ app.post('/chats/:id/messages', requireAuth, async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO messages (chat_id, sender_id, sender_name, text)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO messages (chat_id, sender_id, sender_name, text, attachment_type, attachment_data, attachment_mime_type, attachment_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [id, req.user.userId, req.user.name, text.trim()]
+      [
+        id,
+        req.user.userId,
+        req.user.name,
+        cleanedText || (cleanedAttachmentType === 'image' ? '[image]' : '[audio]'),
+        cleanedAttachmentType || null,
+        cleanedAttachmentData || null,
+        cleanedAttachmentMimeType,
+        cleanedAttachmentName,
+      ]
     );
 
     const recipientId = chat.donor_id === req.user.userId ? chat.requester_id : chat.donor_id;
     const notification = await createNotification({
       userId: recipientId,
       type: 'message',
-      message: `${req.user.name}: ${text.trim().slice(0, 90)}`,
+      message: `${req.user.name}: ${(cleanedText || `[${cleanedAttachmentType || 'message'}]`).slice(0, 90)}`,
       requestId: chat.request_id,
       chatId: chat.id,
       metadata: {

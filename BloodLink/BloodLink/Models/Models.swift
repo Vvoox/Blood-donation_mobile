@@ -78,7 +78,7 @@ struct Chat: Codable, Identifiable {
     }
 }
 
-struct Message: Codable, Identifiable {
+struct Message: Codable, Identifiable, Equatable {
     var id: String
     var chatId: String
     var senderId: String
@@ -86,6 +86,10 @@ struct Message: Codable, Identifiable {
     var content: String
     var createdAt: String
     var isRead: Bool
+    var attachmentType: String?
+    var attachmentData: String?
+    var attachmentMimeType: String?
+    var attachmentName: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -95,6 +99,10 @@ struct Message: Codable, Identifiable {
         case content = "text"
         case createdAt = "created_at"
         case isRead = "read"
+        case attachmentType = "attachment_type"
+        case attachmentData = "attachment_data"
+        case attachmentMimeType = "attachment_mime_type"
+        case attachmentName = "attachment_name"
     }
 }
 

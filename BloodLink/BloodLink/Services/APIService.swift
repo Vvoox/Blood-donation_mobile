@@ -13,7 +13,11 @@ class APIService {
     weak var authDelegate: APIServiceAuthDelegate?
 
     private struct ChatDetailResponse: Decodable {
-        let chat: Chat
+        struct ChatInfo: Decodable {
+            let id: String
+        }
+
+        let chat: ChatInfo
         let messages: [Message]
     }
 
@@ -33,6 +37,20 @@ class APIService {
         let bloodType: String
         let country: String
         let phoneNumber: String
+    }
+
+    struct AttachmentPayload {
+        let type: String
+        let data: String
+        let mimeType: String
+        let name: String
+    }
+
+    struct RequestFilters {
+        var requesterName: String = ""
+        var bloodType: String = ""
+        var dateFrom: String?
+        var dateTo: String?
     }
 
     private func validateResponse(data: Data, response: URLResponse) throws {
@@ -77,16 +95,47 @@ class APIService {
         return (data, response)
     }
 
-    func fetchRequests(city: String? = nil, page: Int = 1, limit: Int? = nil, token: String? = nil) async throws -> [BloodRequest] {
+    func fetchRequests(
+        city: String? = nil,
+        page: Int = 1,
+        limit: Int? = nil,
+        token: String? = nil,
+        filters: RequestFilters? = nil
+    ) async throws -> [BloodRequest] {
         let pageSize = limit ?? defaultPageSize
-        let urlStr: String
+        var components: URLComponents
         if let city = city, !city.isEmpty {
             let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? city
-            urlStr = "\(baseURL)/requests/city/\(encodedCity)?page=\(page)&limit=\(pageSize)"
+            guard let url = URL(string: "\(baseURL)/requests/city/\(encodedCity)") else { throw URLError(.badURL) }
+            components = URLComponents(url: url, resolvingAgainstBaseURL: false) ?? URLComponents()
         } else {
-            urlStr = "\(baseURL)/requests?page=\(page)&limit=\(pageSize)"
+            guard let url = URL(string: "\(baseURL)/requests") else { throw URLError(.badURL) }
+            components = URLComponents(url: url, resolvingAgainstBaseURL: false) ?? URLComponents()
         }
-        guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
+
+        var queryItems = [
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(pageSize)),
+        ]
+
+        if let filters {
+            let trimmedName = filters.requesterName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedName.isEmpty {
+                queryItems.append(URLQueryItem(name: "requesterName", value: trimmedName))
+            }
+            if !filters.bloodType.isEmpty {
+                queryItems.append(URLQueryItem(name: "bloodType", value: filters.bloodType))
+            }
+            if let dateFrom = filters.dateFrom, !dateFrom.isEmpty {
+                queryItems.append(URLQueryItem(name: "dateFrom", value: dateFrom))
+            }
+            if let dateTo = filters.dateTo, !dateTo.isEmpty {
+                queryItems.append(URLQueryItem(name: "dateTo", value: dateTo))
+            }
+        }
+
+        components.queryItems = queryItems
+        guard let url = components.url else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
         if let token = authorizedToken(fallback: token) {
@@ -202,6 +251,28 @@ class APIService {
         request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
 
         let body = ["text": content]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        return try JSONDecoder().decode(Message.self, from: data)
+    }
+
+    func sendAttachment(chatId: String, text: String = "", attachment: AttachmentPayload, token: String) async throws -> Message {
+        guard let url = URL(string: "\(baseURL)/chats/\(chatId)/messages") else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = [
+            "text": text,
+            "attachmentType": attachment.type,
+            "attachmentData": attachment.data,
+            "attachmentMimeType": attachment.mimeType,
+            "attachmentName": attachment.name,
+        ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await execute(request, allowRefresh: true)

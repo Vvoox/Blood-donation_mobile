@@ -65,7 +65,6 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
     }
 
     init() {
-        APIService.shared.authDelegate = self
         rememberMe = defaults.bool(forKey: rememberMeKey)
         refreshToken = defaults.string(forKey: refreshTokenKey)
 
@@ -77,6 +76,8 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
                 || defaults.string(forKey: refreshTokenKey) != nil
             Task { await restoreSessionIfNeeded() }
         }
+
+        APIService.shared.authDelegate = self
     }
 
     func login(email: String, password: String) {

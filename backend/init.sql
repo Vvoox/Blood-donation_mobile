@@ -47,9 +47,18 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id VARCHAR(255) NOT NULL,
   sender_name VARCHAR(255) NOT NULL,
   text TEXT NOT NULL,
+  attachment_type VARCHAR(20),
+  attachment_data TEXT,
+  attachment_mime_type VARCHAR(120),
+  attachment_name VARCHAR(255),
   read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(20);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_data TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_mime_type VARCHAR(120);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_name VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

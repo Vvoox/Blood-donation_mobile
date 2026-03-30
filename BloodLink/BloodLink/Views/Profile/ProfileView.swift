@@ -6,8 +6,8 @@ struct ProfileView: View {
     @Environment(\.openURL) var openURL
     @State private var showCreateRequest = false
     @State private var selectedRequest: BloodRequest?
+    @State private var selectedSection: String? = nil
     @State private var requestTab = "mine"
-    @State private var settingsTab = "password"
     @State private var myRequests: [BloodRequest] = []
     @State private var acceptedRequests: [BloodRequest] = []
     @State private var refusedRequests: [BloodRequest] = []
@@ -94,42 +94,6 @@ struct ProfileView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(22)
 
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(localization.text("profile.section.requests"))
-                            .font(.headline)
-
-                        Picker("", selection: $requestTab) {
-                            Text(localization.text("profile.requests.mine")).tag("mine")
-                            Text(localization.text("profile.requests.accepted")).tag("accepted")
-                            Text(localization.text("profile.requests.refused")).tag("refused")
-                        }
-                        .pickerStyle(.segmented)
-
-                        if isLoadingRequests {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.vertical, 12)
-                        } else if activeRequests.isEmpty {
-                            Text(localization.text("profile.empty_requests"))
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            VStack(spacing: 12) {
-                                ForEach(activeRequests) { request in
-                                    Button {
-                                        selectedRequest = request
-                                    } label: {
-                                        RequestCard(request: request)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                    .padding(18)
-                    .background(Color(.systemBackground))
-                    .cornerRadius(22)
-
                     Button {
                         showCreateRequest = true
                     } label: {
@@ -162,17 +126,67 @@ struct ProfileView: View {
                         .cornerRadius(22)
                     }
 
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text(localization.text("profile.section.settings"))
-                            .font(.headline)
-
-                        Picker("", selection: $settingsTab) {
-                            Text(localization.text("profile.settings.password")).tag("password")
-                            Text(localization.text("profile.settings.delete")).tag("delete")
+                    Button {
+                        withAnimation {
+                            selectedSection = selectedSection == "requests" ? nil : "requests"
                         }
-                        .pickerStyle(.segmented)
+                    } label: {
+                        expandableRow(
+                            title: localization.text("profile.section.requests"),
+                            systemImage: "list.bullet.rectangle",
+                            isExpanded: selectedSection == "requests"
+                        )
+                    }
 
-                        if settingsTab == "password" {
+                    if selectedSection == "requests" {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Picker("", selection: $requestTab) {
+                                Text(localization.text("profile.requests.mine")).tag("mine")
+                                Text(localization.text("profile.requests.accepted")).tag("accepted")
+                                Text(localization.text("profile.requests.refused")).tag("refused")
+                            }
+                            .pickerStyle(.segmented)
+
+                            if isLoadingRequests {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.vertical, 12)
+                            } else if activeRequests.isEmpty {
+                                Text(localization.text("profile.empty_requests"))
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(activeRequests) { request in
+                                        Button {
+                                            selectedRequest = request
+                                        } label: {
+                                            RequestCard(request: request)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(18)
+                        .background(Color(.systemBackground))
+                        .cornerRadius(22)
+                    }
+
+                    Button {
+                        withAnimation {
+                            selectedSection = selectedSection == "settings" ? nil : "settings"
+                        }
+                    } label: {
+                        expandableRow(
+                            title: localization.text("profile.section.settings"),
+                            systemImage: "gearshape.fill",
+                            isExpanded: selectedSection == "settings"
+                        )
+                    }
+
+                    if selectedSection == "settings" {
+                        VStack(alignment: .leading, spacing: 14) {
                             VStack(spacing: 12) {
                                 SecureField(localization.text("profile.password.current"), text: $currentPassword)
                                     .padding()
@@ -204,7 +218,9 @@ struct ProfileView: View {
                                 .cornerRadius(14)
                                 .disabled(isSavingPassword || currentPassword.isEmpty || newPassword.isEmpty)
                             }
-                        } else {
+
+                            Divider()
+
                             VStack(alignment: .leading, spacing: 12) {
                                 Text(localization.text("profile.delete.warning"))
                                     .font(.subheadline)
@@ -219,35 +235,36 @@ struct ProfileView: View {
                                 }
                                 .disabled(isDeletingAccount)
                             }
-                        }
 
-                        if let settingsMessage {
-                            Text(settingsMessage)
-                                .font(.caption)
-                                .foregroundColor(.green)
-                        }
+                            if let settingsMessage {
+                                Text(settingsMessage)
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
 
-                        if let settingsError {
-                            Text(settingsError)
-                                .font(.caption)
-                                .foregroundColor(.red)
+                            if let settingsError {
+                                Text(settingsError)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
                         }
+                        .padding(18)
+                        .background(Color(.systemBackground))
+                        .cornerRadius(22)
                     }
-                    .padding(18)
-                    .background(Color(.systemBackground))
-                    .cornerRadius(22)
 
                     Button {
                         if let url = URL(string: "mailto:support@bloodlink.com") {
                             openURL(url)
                         }
                     } label: {
-                        Label(localization.text("profile.support"), systemImage: "lifepreserver")
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        expandableRow(
+                            title: localization.text("profile.support"),
+                            systemImage: "lifepreserver",
+                            isExpanded: false,
+                            showsChevron: false
+                        )
                     }
-                    .padding(18)
-                    .background(Color(.systemBackground))
-                    .cornerRadius(22)
 
                     Button(role: .destructive) {
                         authService.logout()
@@ -354,6 +371,21 @@ struct ProfileView: View {
             settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
         isDeletingAccount = false
+    }
+
+    private func expandableRow(title: String, systemImage: String, isExpanded: Bool, showsChevron: Bool = true) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+                .foregroundColor(.primary)
+            Spacer()
+            if showsChevron {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(18)
+        .background(Color(.systemBackground))
+        .cornerRadius(22)
     }
 }
 
