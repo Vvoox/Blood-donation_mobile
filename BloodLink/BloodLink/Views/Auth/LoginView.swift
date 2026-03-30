@@ -29,14 +29,27 @@ struct LoginView: View {
                 .padding(.bottom, 48)
 
                 VStack(spacing: 16) {
-                    TextField(localization.text("login.email"), text: $email)
+                    TextField(
+                        "",
+                        text: $email,
+                        prompt: Text(localization.text("login.email")).foregroundColor(.gray)
+                    )
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                        .foregroundColor(.black)
+                        .tint(Color(red: 0.776, green: 0.157, blue: 0.157))
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)
 
-                    SecureField(localization.text("login.password"), text: $password)
+                    SecureField(
+                        "",
+                        text: $password,
+                        prompt: Text(localization.text("login.password")).foregroundColor(.gray)
+                    )
+                        .foregroundColor(.black)
+                        .tint(Color(red: 0.776, green: 0.157, blue: 0.157))
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)

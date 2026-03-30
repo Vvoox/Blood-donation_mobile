@@ -51,6 +51,8 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
         let familyName: String?
         let city: String?
         let bloodType: String?
+        let phoneNumber: String?
+        let phoneVisibility: String?
 
         enum CodingKeys: String, CodingKey {
             case sub
@@ -61,6 +63,8 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
             case familyName = "family_name"
             case city
             case bloodType = "blood_type"
+            case phoneNumber = "phone_number"
+            case phoneVisibility = "phone_visibility"
         }
     }
 
@@ -159,7 +163,9 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
             email: claims.email ?? "",
             name: fullName,
             city: claims.city ?? "",
-            bloodType: claims.bloodType ?? ""
+            bloodType: claims.bloodType ?? "",
+            phoneNumber: claims.phoneNumber ?? "",
+            phoneVisibility: claims.phoneVisibility ?? "private"
         )
     }
 
@@ -171,7 +177,9 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
             email: fallbackEmail,
             name: fallbackEmail,
             city: "",
-            bloodType: ""
+            bloodType: "",
+            phoneNumber: "",
+            phoneVisibility: "private"
         )
         isLoggedIn = true
         WebSocketService.shared.connect(token: tokenResponse.accessToken)
@@ -226,7 +234,9 @@ class AuthService: ObservableObject, APIServiceAuthDelegate {
                         ?? json["preferred_username"] as? String
                         ?? "",
                     city: firstString(json["city"]) == "" ? firstString(attributes?["city"]) : firstString(json["city"]),
-                    bloodType: firstString(json["blood_type"]) == "" ? firstString(json["bloodType"]) == "" ? firstString(attributes?["bloodType"]) : firstString(json["bloodType"]) : firstString(json["blood_type"])
+                    bloodType: firstString(json["blood_type"]) == "" ? firstString(json["bloodType"]) == "" ? firstString(attributes?["bloodType"]) : firstString(json["bloodType"]) : firstString(json["blood_type"]),
+                    phoneNumber: firstString(json["phone_number"]) == "" ? firstString(json["phoneNumber"]) == "" ? firstString(attributes?["phoneNumber"]) : firstString(json["phoneNumber"]) : firstString(json["phone_number"]),
+                    phoneVisibility: firstString(json["phone_visibility"]) == "" ? firstString(json["phoneVisibility"]) == "" ? firstString(attributes?["phoneVisibility"]) : firstString(json["phoneVisibility"]) : firstString(json["phone_visibility"])
                 )
                 self?.currentUser = user
                 self?.isLoggedIn = true

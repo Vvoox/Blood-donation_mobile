@@ -14,9 +14,12 @@ struct ProfileView: View {
     @State private var isLoadingRequests = false
     @State private var currentPassword = ""
     @State private var newPassword = ""
+    @State private var phoneNumber = ""
+    @State private var phoneVisibility = "private"
     @State private var settingsMessage: String?
     @State private var settingsError: String?
     @State private var isSavingPassword = false
+    @State private var isSavingProfile = false
     @State private var isDeletingAccount = false
     @State private var showDeleteConfirmation = false
 
@@ -74,6 +77,13 @@ struct ProfileView: View {
                             label: localization.text("profile.city"),
                             value: authService.currentUser?.city.isEmpty == false
                                 ? authService.currentUser!.city : localization.text("profile.not_set")
+                        )
+                        Divider()
+                        ProfileRow(
+                            icon: "phone.fill",
+                            label: "Phone",
+                            value: authService.currentUser?.phoneNumber.isEmpty == false
+                                ? authService.currentUser!.phoneNumber : localization.text("profile.not_set")
                         )
                         Divider()
                         HStack {
@@ -187,6 +197,45 @@ struct ProfileView: View {
 
                     if selectedSection == "settings" {
                         VStack(alignment: .leading, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Phone settings")
+                                    .font(.headline)
+
+                                TextField("Phone number", text: $phoneNumber)
+                                    .keyboardType(.phonePad)
+                                    .padding()
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+
+                                Picker("Visibility", selection: $phoneVisibility) {
+                                    Text("Private").tag("private")
+                                    Text("Public").tag("public")
+                                }
+                                .pickerStyle(.segmented)
+
+                                Button {
+                                    Task { await updateProfileSettings() }
+                                } label: {
+                                    if isSavingProfile {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 14)
+                                    } else {
+                                        Text("Save phone settings")
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 14)
+                                    }
+                                }
+                                .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                .cornerRadius(14)
+                                .disabled(isSavingProfile)
+                            }
+
+                            Divider()
+
                             VStack(spacing: 12) {
                                 SecureField(localization.text("profile.password.current"), text: $currentPassword)
                                     .padding()
@@ -292,6 +341,10 @@ struct ProfileView: View {
                     .environmentObject(localization)
             }
             .task { await loadRequests() }
+            .onAppear {
+                phoneNumber = authService.currentUser?.phoneNumber ?? ""
+                phoneVisibility = authService.currentUser?.phoneVisibility ?? "private"
+            }
             .onChange(of: requestTab) { _ in
                 settingsMessage = nil
                 settingsError = nil
@@ -357,6 +410,27 @@ struct ProfileView: View {
             settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
         isSavingPassword = false
+    }
+
+    private func updateProfileSettings() async {
+        guard let token = authService.accessToken else { return }
+        settingsMessage = nil
+        settingsError = nil
+        isSavingProfile = true
+        do {
+            let updatedUser = try await APIService.shared.updateProfile(
+                .init(
+                    phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
+                    phoneVisibility: phoneVisibility
+                ),
+                token: token
+            )
+            authService.currentUser = updatedUser
+            settingsMessage = "Phone settings updated."
+        } catch {
+            settingsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+        isSavingProfile = false
     }
 
     private func deleteAccount() async {

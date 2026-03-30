@@ -70,6 +70,8 @@ function buildUserFromDecoded(decoded) {
     email: decoded.email || '',
     city: firstValue(decoded.city) || firstValue(attributes.city) || '',
     bloodType: firstValue(decoded.bloodType) || firstValue(attributes.bloodType) || firstValue(decoded.blood_type) || '',
+    phoneNumber: firstValue(decoded.phoneNumber) || firstValue(attributes.phoneNumber) || firstValue(decoded.phone_number) || '',
+    phoneVisibility: firstValue(decoded.phoneVisibility) || firstValue(attributes.phoneVisibility) || firstValue(decoded.phone_visibility) || 'private',
   };
 }
 
@@ -160,6 +162,47 @@ async function getKeycloakAdminToken() {
   return data.access_token;
 }
 
+async function fetchKeycloakUser(userId, adminToken) {
+  const response = await fetch(`${KEYCLOAK_URL}/admin/realms/${KEYCLOAK_REALM}/users/${userId}`, {
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) {
+    const error = new Error('Unable to load Keycloak user profile');
+    error.status = response.status || 500;
+    throw error;
+  }
+
+  return data;
+}
+
+async function updateKeycloakUser(userId, updater) {
+  const adminToken = await getKeycloakAdminToken();
+  const currentUser = await fetchKeycloakUser(userId, adminToken);
+  const updatedUser = updater(currentUser);
+
+  const response = await fetch(`${KEYCLOAK_URL}/admin/realms/${KEYCLOAK_REALM}/users/${userId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${adminToken}`,
+    },
+    body: JSON.stringify(updatedUser),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(text || 'Failed to update Keycloak user');
+    error.status = response.status || 500;
+    throw error;
+  }
+
+  return updatedUser;
+}
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
@@ -233,6 +276,7 @@ app.post('/auth/register', async (req, res) => {
       bloodType,
       country,
       phoneNumber,
+      phoneVisibility,
     } = req.body;
 
     if (!email || !password || !firstName || !lastName || !city) {
@@ -269,6 +313,7 @@ app.post('/auth/register', async (req, res) => {
           country: [country || 'Morocco'],
           bloodType: [bloodType || ''],
           phoneNumber: [phoneNumber || ''],
+          phoneVisibility: [phoneVisibility === 'public' ? 'public' : 'private'],
         },
       }),
     });
@@ -292,6 +337,8 @@ app.post('/auth/register', async (req, res) => {
       lastName,
       city,
       bloodType: bloodType || '',
+      phoneNumber: phoneNumber || '',
+      phoneVisibility: phoneVisibility === 'public' ? 'public' : 'private',
     });
   } catch (err) {
     console.error('POST /auth/register error:', err);
@@ -504,6 +551,11 @@ app.post('/requests', requireAuth, async (req, res) => {
     const bloodTypes = req.body.bloodTypes || req.body.blood_types || [];
     const city = req.body.city;
     const country = req.body.country;
+    const contactPhone = req.body.contactPhone || req.body.contact_phone || req.user.phoneNumber || null;
+    const contactPhoneVisibility =
+      (req.body.contactPhoneVisibility || req.body.contact_phone_visibility || req.user.phoneVisibility || 'private') === 'public'
+        ? 'public'
+        : 'private';
     const peopleNeeded = req.body.peopleNeeded || req.body.people_needed;
     const deadline = req.body.deadline;
     const notes = req.body.notes;
@@ -514,8 +566,8 @@ app.post('/requests', requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO blood_requests
-         (creator_id, creator_name, blood_types, city, country, people_needed, deadline, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (creator_id, creator_name, blood_types, city, country, contact_phone, contact_phone_visibility, people_needed, deadline, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         req.user.userId,
@@ -523,6 +575,8 @@ app.post('/requests', requireAuth, async (req, res) => {
         bloodTypes || [],
         city,
         country || 'Morocco',
+        contactPhone,
+        contactPhoneVisibility,
         peopleNeeded || 1,
         deadline,
         notes || null,
@@ -557,6 +611,12 @@ app.put('/requests/:id([0-9a-fA-F-]{36})', requireAuth, async (req, res) => {
     const bloodTypes = req.body.bloodTypes || req.body.blood_types || current.blood_types;
     const city = req.body.city || current.city;
     const country = req.body.country || current.country;
+    const contactPhone = Object.prototype.hasOwnProperty.call(req.body, 'contactPhone') || Object.prototype.hasOwnProperty.call(req.body, 'contact_phone')
+      ? (req.body.contactPhone || req.body.contact_phone || null)
+      : current.contact_phone;
+    const contactPhoneVisibility = Object.prototype.hasOwnProperty.call(req.body, 'contactPhoneVisibility') || Object.prototype.hasOwnProperty.call(req.body, 'contact_phone_visibility')
+      ? ((req.body.contactPhoneVisibility || req.body.contact_phone_visibility) === 'public' ? 'public' : 'private')
+      : current.contact_phone_visibility;
     const peopleNeeded = req.body.peopleNeeded || req.body.people_needed || current.people_needed;
     const deadline = req.body.deadline || current.deadline;
     const notes = Object.prototype.hasOwnProperty.call(req.body, 'notes') ? req.body.notes : current.notes;
@@ -567,13 +627,15 @@ app.put('/requests/:id([0-9a-fA-F-]{36})', requireAuth, async (req, res) => {
        SET blood_types = $2,
            city = $3,
            country = $4,
-           people_needed = $5,
-           deadline = $6,
-           notes = $7,
-           status = $8
+           contact_phone = $5,
+           contact_phone_visibility = $6,
+           people_needed = $7,
+           deadline = $8,
+           notes = $9,
+           status = $10
        WHERE id = $1
        RETURNING *`,
-      [id, bloodTypes, city, country, peopleNeeded, deadline, notes || null, status]
+      [id, bloodTypes, city, country, contactPhone, contactPhoneVisibility, peopleNeeded, deadline, notes || null, status]
     );
 
     res.json(normalizeRequestRow(result.rows[0]));
@@ -954,6 +1016,39 @@ app.post('/users/me/password', requireAuth, async (req, res) => {
   }
 });
 
+app.put('/users/me/profile', requireAuth, async (req, res) => {
+  try {
+    const phoneNumber = typeof req.body.phoneNumber === 'string'
+      ? req.body.phoneNumber.trim()
+      : (req.user.phoneNumber || '');
+    const phoneVisibility = req.body.phoneVisibility === 'public' ? 'public' : 'private';
+
+    await updateKeycloakUser(req.user.userId, (currentUser) => ({
+      ...currentUser,
+      attributes: {
+        ...(currentUser.attributes || {}),
+        city: [req.user.city || firstValue(currentUser.attributes?.city) || ''],
+        bloodType: [req.user.bloodType || firstValue(currentUser.attributes?.bloodType) || ''],
+        phoneNumber: [phoneNumber],
+        phoneVisibility: [phoneVisibility],
+      },
+    }));
+
+    res.json({
+      sub: req.user.userId,
+      email: req.user.email,
+      name: req.user.name,
+      city: req.user.city,
+      blood_type: req.user.bloodType || '',
+      phone_number: phoneNumber,
+      phone_visibility: phoneVisibility,
+    });
+  } catch (err) {
+    console.error('PUT /users/me/profile error:', err);
+    res.status(err.status || 500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
 app.delete('/users/me', requireAuth, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -992,7 +1087,15 @@ app.delete('/users/me', requireAuth, async (req, res) => {
 
 // Get current user profile from token
 app.get('/users/me', requireAuth, (req, res) => {
-  res.json(req.user);
+  res.json({
+    sub: req.user.userId,
+    email: req.user.email,
+    name: req.user.name,
+    city: req.user.city,
+    blood_type: req.user.bloodType || '',
+    phone_number: req.user.phoneNumber || '',
+    phone_visibility: req.user.phoneVisibility || 'private',
+  });
 });
 
 // ─── Start server ─────────────────────────────────────────────────────────────

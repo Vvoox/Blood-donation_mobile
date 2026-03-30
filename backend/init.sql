@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS blood_requests (
   blood_types TEXT[] NOT NULL DEFAULT '{}',
   city VARCHAR(255) NOT NULL,
   country VARCHAR(255) NOT NULL DEFAULT 'Morocco',
+  contact_phone VARCHAR(40),
+  contact_phone_visibility VARCHAR(20) NOT NULL DEFAULT 'private',
   people_needed INTEGER NOT NULL DEFAULT 1,
   accepted_count INTEGER NOT NULL DEFAULT 0,
   deadline TIMESTAMPTZ NOT NULL,
@@ -59,6 +61,8 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(20);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_data TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_mime_type VARCHAR(120);
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_name VARCHAR(255);
+ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(40);
+ALTER TABLE blood_requests ADD COLUMN IF NOT EXISTS contact_phone_visibility VARCHAR(20) NOT NULL DEFAULT 'private';
 
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var selectedRequest: BloodRequest?
     @State private var showLoginSheet = false
     @State private var showCreateRequest = false
+    @State private var showAllRequests = false
     private let pageSize = 10
 
     let cities = ["Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
@@ -102,6 +103,11 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showCreateRequest) {
                 CreateRequestView()
+                    .environmentObject(authService)
+                    .environmentObject(localization)
+            }
+            .sheet(isPresented: $showAllRequests) {
+                AllRequestsView()
                     .environmentObject(authService)
                     .environmentObject(localization)
             }
@@ -221,6 +227,20 @@ struct HomeView: View {
                         .background(.white.opacity(0.16))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
+            }
+
+            Button {
+                showAllRequests = true
+            } label: {
+                HStack {
+                    Text("Show All Requests")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: "arrow.right.circle.fill")
+                }
+                .foregroundColor(.white)
+                .padding(.top, 4)
             }
         }
         .padding(20)

@@ -13,6 +13,7 @@ struct ChatView: View {
     @State private var newMessage = ""
     @State private var isSending = false
     @State private var isLoading = false
+    @State private var composerError: String?
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var pendingImageAttachment: APIService.AttachmentPayload?
     @StateObject private var audioRecorder = AudioRecorderViewModel()
@@ -53,41 +54,111 @@ struct ChatView: View {
                 VStack(spacing: 8) {
                     if let pendingImageAttachment,
                        let image = UIImage.fromDataURL(pendingImageAttachment.data) {
-                        HStack {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 84, height: 84)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .overlay(alignment: .topTrailing) {
-                                    Button {
-                                        self.pendingImageAttachment = nil
-                                        self.selectedPhotoItem = nil
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.white)
-                                            .background(Color.black.opacity(0.45))
-                                            .clipShape(Circle())
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 84, height: 84)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(alignment: .topTrailing) {
+                                        Button {
+                                            clearPendingImage()
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.white)
+                                                .background(Color.black.opacity(0.45))
+                                                .clipShape(Circle())
+                                        }
+                                        .offset(x: 8, y: -8)
                                     }
-                                    .offset(x: 8, y: -8)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Selected image")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Text("Ready to send")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
-                            Spacer()
+                                Spacer()
+                            }
+
+                            HStack(spacing: 10) {
+                                Button {
+                                    Task { await sendCurrentPayload() }
+                                } label: {
+                                    Label("Send", systemImage: "paperplane.fill")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                                .disabled(isSending)
+
+                                Button {
+                                    clearPendingImage()
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.red)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.red.opacity(0.08))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                            }
                         }
+                        .padding(14)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
 
                     if let pendingAudio = audioRecorder.pendingAttachment {
-                        HStack {
-                            Label(pendingAudio.name, systemImage: "waveform")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Button {
-                                audioRecorder.clearPendingAttachment()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Recorded message")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Label(pendingAudio.name, systemImage: "waveform")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+
+                            HStack(spacing: 10) {
+                                Button {
+                                    Task { await sendCurrentPayload() }
+                                } label: {
+                                    Label("Send", systemImage: "paperplane.fill")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color(red: 0.776, green: 0.157, blue: 0.157))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                                .disabled(isSending)
+
+                                Button {
+                                    audioRecorder.clearPendingAttachment()
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.red)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.red.opacity(0.08))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
                             }
                         }
+                        .padding(14)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
 
                     HStack(spacing: 12) {
@@ -117,11 +188,20 @@ struct ChatView: View {
                         } label: {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 32))
-                                .foregroundColor(canSend
+                                .foregroundColor(canSendFromComposer
                                     ? Color(red: 0.776, green: 0.157, blue: 0.157)
                                     : Color(.systemGray4))
                         }
-                        .disabled(!canSend || isSending)
+                        .disabled(!canSendFromComposer || isSending)
+                    }
+
+                    if let composerError {
+                        HStack {
+                            Text(composerError)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                            Spacer()
+                        }
                     }
 
                     if audioRecorder.isRecording {
@@ -168,6 +248,10 @@ struct ChatView: View {
             || audioRecorder.pendingAttachment != nil
     }
 
+    private var canSendFromComposer: Bool {
+        !newMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     func loadMessages(showLoader: Bool) async {
         guard let token = authService.accessToken else { return }
         if showLoader {
@@ -188,6 +272,7 @@ struct ChatView: View {
     func sendCurrentPayload() async {
         let content = newMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let token = authService.accessToken else { return }
+        composerError = nil
         isSending = true
         newMessage = ""
         do {
@@ -203,12 +288,12 @@ struct ChatView: View {
                 sent = try await APIService.shared.sendMessage(chatId: chat.id, content: content, token: token)
             }
             messages.append(sent)
-            pendingImageAttachment = nil
-            selectedPhotoItem = nil
+            clearPendingImage()
             audioRecorder.clearPendingAttachment()
             await loadMessages(showLoader: false)
         } catch {
             newMessage = content
+            composerError = error.localizedDescription
         }
         isSending = false
     }
@@ -216,14 +301,22 @@ struct ChatView: View {
     func loadSelectedPhoto(_ item: PhotosPickerItem) async {
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            guard let image = UIImage(data: data),
+                  let optimizedData = image.preparedChatImageData() else {
+                composerError = "Could not prepare the selected image."
+                clearPendingImage()
+                return
+            }
             pendingImageAttachment = .init(
                 type: "image",
-                data: "data:image/jpeg;base64,\(data.base64EncodedString())",
+                data: "data:image/jpeg;base64,\(optimizedData.base64EncodedString())",
                 mimeType: "image/jpeg",
                 name: "photo.jpg"
             )
+            composerError = nil
         } catch {
-            pendingImageAttachment = nil
+            composerError = "Could not load the selected image."
+            clearPendingImage()
         }
     }
 
@@ -231,8 +324,15 @@ struct ChatView: View {
         if audioRecorder.isRecording {
             audioRecorder.stopRecording()
         } else {
+            composerError = nil
+            audioRecorder.clearPendingAttachment()
             audioRecorder.startRecording()
         }
+    }
+
+    func clearPendingImage() {
+        pendingImageAttachment = nil
+        selectedPhotoItem = nil
     }
 }
 
@@ -425,5 +525,23 @@ private extension UIImage {
     static func fromDataURL(_ dataURL: String) -> UIImage? {
         guard let data = Data.fromDataURL(dataURL) else { return nil }
         return UIImage(data: data)
+    }
+
+    func preparedChatImageData(maxDimension: CGFloat = 1600, compressionQuality: CGFloat = 0.72) -> Data? {
+        let largestSide = max(size.width, size.height)
+        let targetImage: UIImage
+
+        if largestSide > maxDimension {
+            let scale = maxDimension / largestSide
+            let targetSize = CGSize(width: size.width * scale, height: size.height * scale)
+            let renderer = UIGraphicsImageRenderer(size: targetSize)
+            targetImage = renderer.image { _ in
+                draw(in: CGRect(origin: .zero, size: targetSize))
+            }
+        } else {
+            targetImage = self
+        }
+
+        return targetImage.jpegData(compressionQuality: compressionQuality)
     }
 }

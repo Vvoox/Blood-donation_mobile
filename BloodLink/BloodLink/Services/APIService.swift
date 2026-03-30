@@ -37,6 +37,12 @@ class APIService {
         let bloodType: String
         let country: String
         let phoneNumber: String
+        let phoneVisibility: String
+    }
+
+    struct UpdateProfilePayload {
+        let phoneNumber: String
+        let phoneVisibility: String
     }
 
     struct AttachmentPayload {
@@ -147,8 +153,16 @@ class APIService {
         return try JSONDecoder().decode([BloodRequest].self, from: data)
     }
 
-    func createRequest(bloodTypes: [String], city: String, donorsNeeded: Int,
-                       deadline: String, notes: String, token: String) async throws -> BloodRequest {
+    func createRequest(
+        bloodTypes: [String],
+        city: String,
+        donorsNeeded: Int,
+        deadline: String,
+        notes: String,
+        contactPhone: String,
+        contactPhoneVisibility: String,
+        token: String
+    ) async throws -> BloodRequest {
         guard let url = URL(string: "\(baseURL)/requests") else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
@@ -160,6 +174,8 @@ class APIService {
             "bloodTypes": bloodTypes,
             "city": city,
             "country": "Morocco",
+            "contactPhone": contactPhone,
+            "contactPhoneVisibility": contactPhoneVisibility,
             "peopleNeeded": donorsNeeded,
             "deadline": deadline,
             "notes": notes
@@ -294,6 +310,23 @@ class APIService {
         try validateResponse(data: data, response: response)
     }
 
+    func updateProfile(_ payload: UpdateProfilePayload, token: String) async throws -> User {
+        guard let url = URL(string: "\(baseURL)/users/me/profile") else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(authorizedToken(fallback: token) ?? token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "phoneNumber": payload.phoneNumber,
+            "phoneVisibility": payload.phoneVisibility,
+        ])
+
+        let (data, response) = try await execute(request, allowRefresh: true)
+        try validateResponse(data: data, response: response)
+        return try JSONDecoder().decode(User.self, from: data)
+    }
+
     func deleteAccount(token: String) async throws {
         guard let url = URL(string: "\(baseURL)/users/me") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
@@ -320,6 +353,7 @@ class APIService {
             "bloodType": payload.bloodType,
             "country": payload.country,
             "phoneNumber": payload.phoneNumber,
+            "phoneVisibility": payload.phoneVisibility,
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

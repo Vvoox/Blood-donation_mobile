@@ -6,6 +6,9 @@ struct User: Codable, Identifiable {
     var name: String
     var city: String
     var bloodType: String
+    var bloodTypeVisibility: String
+    var phoneNumber: String
+    var phoneVisibility: String
 
     enum CodingKeys: String, CodingKey {
         case id = "sub"
@@ -13,6 +16,9 @@ struct User: Codable, Identifiable {
         case name
         case city
         case bloodType = "blood_type"
+        case bloodTypeVisibility = "blood_type_visibility"
+        case phoneNumber = "phone_number"
+        case phoneVisibility = "phone_visibility"
     }
 }
 
@@ -23,6 +29,8 @@ struct BloodRequest: Codable, Identifiable {
     var bloodTypes: [String]
     var city: String
     var country: String?
+    var contactPhone: String?
+    var contactPhoneVisibility: String?
     var donorsNeeded: Int
     var donorsAccepted: Int
     var deadline: String
@@ -38,6 +46,8 @@ struct BloodRequest: Codable, Identifiable {
         case bloodTypes = "blood_types"
         case city
         case country
+        case contactPhone = "contact_phone"
+        case contactPhoneVisibility = "contact_phone_visibility"
         case donorsNeeded = "people_needed"
         case donorsAccepted = "accepted_count"
         case deadline

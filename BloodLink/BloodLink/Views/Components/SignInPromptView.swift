@@ -33,12 +33,17 @@ struct SignInPromptView: View {
             Button(localization.text("prompt.sign_in")) {
                 showLogin = true
             }
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
+            .font(.subheadline)
+            .fontWeight(.bold)
+            .foregroundColor(Color(red: 0.651, green: 0.09, blue: 0.09))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color(red: 0.776, green: 0.157, blue: 0.157))
-            .cornerRadius(14)
+            .background(.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color(red: 0.776, green: 0.157, blue: 0.157).opacity(0.14), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .padding(24)
         .background(Color(.systemBackground))
