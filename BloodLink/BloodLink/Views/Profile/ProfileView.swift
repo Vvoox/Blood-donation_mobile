@@ -4,6 +4,7 @@ struct ProfileView: View {
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var localization: LocalizationService
     @Environment(\.openURL) var openURL
+    @AppStorage("selected_color_scheme") private var selectedColorScheme = "system"
     @State private var showCreateRequest = false
     @State private var selectedRequest: BloodRequest?
     @State private var selectedSection: String? = nil
@@ -25,8 +26,15 @@ struct ProfileView: View {
     @State private var isSavingProfile = false
     @State private var isDeletingAccount = false
     @State private var showDeleteConfirmation = false
+    @FocusState private var focusedField: Field?
     private let cities = ["Casablanca", "Rabat", "Marrakech", "Fes", "Tangier", "Agadir"]
     private let bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+
+    private enum Field {
+        case phoneNumber
+        case currentPassword
+        case newPassword
+    }
 
     var body: some View {
         if authService.isLoggedIn {
@@ -206,6 +214,13 @@ struct ProfileView: View {
                                 Text("Profile settings")
                                     .font(.headline)
 
+                                Picker("Appearance", selection: $selectedColorScheme) {
+                                    Text("System").tag("system")
+                                    Text("Light").tag("light")
+                                    Text("Dark").tag("dark")
+                                }
+                                .pickerStyle(.segmented)
+
                                 Picker("City", selection: $city) {
                                     ForEach(cities, id: \.self) { cityName in
                                         Text(cityName).tag(cityName)
@@ -226,6 +241,8 @@ struct ProfileView: View {
 
                                 TextField("Phone number", text: $phoneNumber)
                                     .keyboardType(.phonePad)
+                                    .submitLabel(.done)
+                                    .focused($focusedField, equals: .phoneNumber)
                                     .padding()
                                     .background(Color(.systemGray6))
                                     .cornerRadius(12)
@@ -261,11 +278,13 @@ struct ProfileView: View {
 
                             VStack(spacing: 12) {
                                 SecureField(localization.text("profile.password.current"), text: $currentPassword)
+                                    .focused($focusedField, equals: .currentPassword)
                                     .padding()
                                     .background(Color(.systemGray6))
                                     .cornerRadius(12)
 
                                 SecureField(localization.text("profile.password.new"), text: $newPassword)
+                                    .focused($focusedField, equals: .newPassword)
                                     .padding()
                                     .background(Color(.systemGray6))
                                     .cornerRadius(12)
@@ -350,7 +369,16 @@ struct ProfileView: View {
                 }
                 .padding(16)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(localization.text("profile.title"))
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
+                    }
+                }
+            }
             .sheet(isPresented: $showCreateRequest, onDismiss: {
                 Task { await loadRequests() }
             }) {
