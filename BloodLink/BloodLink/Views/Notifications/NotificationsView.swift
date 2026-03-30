@@ -118,6 +118,7 @@ struct NotificationRow: View {
     func iconName(for type: NotificationType) -> String {
         switch type {
         case .requestAccepted: return "checkmark.circle.fill"
+        case .requestUpdate: return "arrow.triangle.2.circlepath.circle.fill"
         case .newRequest: return "drop.fill"
         case .message: return "message.fill"
         }

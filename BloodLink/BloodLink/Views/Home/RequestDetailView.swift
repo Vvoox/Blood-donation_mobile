@@ -13,6 +13,7 @@ struct RequestDetailView: View {
     @State private var isLoadingDetail = false
     @State private var isSendingAction = false
     @State private var accepted = false
+    @State private var selectedActionType: String?
     @State private var actionMessage: String?
     @State private var errorMessage: String?
 
@@ -57,6 +58,11 @@ struct RequestDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         InfoRow(icon: "person.fill", label: localization.text("request_detail.requester"), value: currentRequest.requesterName)
                         InfoRow(icon: "location.fill", label: localization.text("request_detail.city"), value: currentRequest.city)
+                        if currentRequest.contactPhoneVisibility == "public",
+                           let contactPhone = currentRequest.contactPhone,
+                           !contactPhone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            InfoRow(icon: "phone.fill", label: "Phone", value: contactPhone)
+                        }
                         InfoRow(icon: "person.2.fill", label: localization.text("request_detail.donors_needed"), value: "\(currentRequest.donorsAccepted)/\(currentRequest.donorsNeeded)")
                         InfoRow(icon: "calendar", label: localization.text("request_detail.deadline"), value: String(currentRequest.deadline.prefix(10)))
                     }
@@ -203,23 +209,28 @@ struct RequestDetailView: View {
                 .font(.headline)
 
             ForEach(quickActions) { action in
+                let isSelected = selectedActionType == action.id
                 Button {
                     Task { await sendQuickAction(action.id) }
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: action.icon)
-                            .foregroundColor(action.color)
+                            .foregroundColor(isSelected ? .white : action.color)
                             .frame(width: 24)
                         Text(action.title)
-                            .foregroundColor(.primary)
+                            .foregroundColor(isSelected ? .white : .primary)
                             .fontWeight(.semibold)
                         Spacer()
-                        if isSendingAction {
+                        if isSendingAction && isSelected {
                             ProgressView()
+                                .tint(.white)
+                        } else if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.white)
                         }
                     }
                     .padding(14)
-                    .background(Color(.systemGray6))
+                    .background(isSelected ? action.color : Color(.systemGray6))
                     .cornerRadius(14)
                 }
                 .buttonStyle(.plain)
@@ -290,6 +301,7 @@ struct RequestDetailView: View {
             currentRequest = fetchedRequest
             donorUpdates = updates
             accepted = fetchedRequest.acceptedByMe
+            selectedActionType = updates.first(where: { $0.donorId == authService.currentUser?.id })?.actionType
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -320,8 +332,10 @@ struct RequestDetailView: View {
                 actionType: actionType,
                 token: token
             )
+            donorUpdates.removeAll { $0.donorId == update.donorId }
             donorUpdates.insert(update, at: 0)
-            actionMessage = "Your update was sent to the requester."
+            selectedActionType = update.actionType
+            actionMessage = "Your donor status was updated."
         } catch {
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

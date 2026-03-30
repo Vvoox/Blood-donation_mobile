@@ -86,6 +86,9 @@ CREATE TABLE IF NOT EXISTS donor_request_updates (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS donor_request_updates_request_donor_idx
+  ON donor_request_updates (request_id, donor_id);
+
 -- Seed demo requests
 INSERT INTO blood_requests (creator_id, creator_name, blood_types, city, country, people_needed, deadline, notes)
 VALUES

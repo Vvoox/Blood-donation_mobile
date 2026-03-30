@@ -874,12 +874,34 @@ app.post('/requests/:id([0-9a-fA-F-]{36})/donor-response', requireAuth, async (r
     const requestRow = requestResult.rows[0];
     const message = `${req.user.name}: ${allowedActions[actionType]}`;
 
-    const updateResult = await pool.query(
-      `INSERT INTO donor_request_updates (request_id, donor_id, donor_name, action_type, message)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, request_id, donor_id, donor_name, action_type, message, created_at`,
-      [id, req.user.userId, req.user.name, actionType, message]
+    const existingUpdate = await pool.query(
+      `SELECT id
+       FROM donor_request_updates
+       WHERE request_id = $1 AND donor_id = $2
+       LIMIT 1`,
+      [id, req.user.userId]
     );
+
+    let updateResult;
+    if (existingUpdate.rows.length > 0) {
+      updateResult = await pool.query(
+        `UPDATE donor_request_updates
+         SET donor_name = $3,
+             action_type = $4,
+             message = $5,
+             created_at = NOW()
+         WHERE request_id = $1 AND donor_id = $2
+         RETURNING id, request_id, donor_id, donor_name, action_type, message, created_at`,
+        [id, req.user.userId, req.user.name, actionType, message]
+      );
+    } else {
+      updateResult = await pool.query(
+        `INSERT INTO donor_request_updates (request_id, donor_id, donor_name, action_type, message)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, request_id, donor_id, donor_name, action_type, message, created_at`,
+        [id, req.user.userId, req.user.name, actionType, message]
+      );
+    }
 
     await createNotification({
       userId: requestRow.creator_id,
